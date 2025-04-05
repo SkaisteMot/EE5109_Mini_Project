@@ -37,12 +37,12 @@ CTRL-C to quit
 moveBindings = {
     'w': (0, 0, 0, 1),  # Forward (Axis 1)
     's': (0, 0, 0, -1),  # Backward (Axis 1)
-    'a': (1, 0, 0, 0),  # Left (Axis 0)
-    'd': (-1, 0, 0, 0),   # Right (Axis 0)
+    'a': (0, 0, 1, 0),  # Left (Axis 0)
+    'd': (-0, 0, -1, 0),   # Right (Axis 0)
     'i': (0, 1, 0, 0),   # Rotate left (Axis 2)
     'k': (0, -1, 0, 0),  # Rotate right (Axis 2)
-    'j': (0, 0, 1, 0),   # Increase height (Axis 4)
-    'l': (0, 0, -1, 0),  # Decrease height (Axis 4)
+    'j': (1, 0, 0, 0),   # Increase height (Axis 4)
+    'l': (-1, 0, 0, 0),  # Decrease height (Axis 4)
 }
 
 # Button bindings for number keys
@@ -82,10 +82,10 @@ if __name__ == "__main__":
                 x, y, z, th = moveBindings[key]
 
                 # Map key bindings to axes
-                joy.axes[0] = x  # Left/Right (Axis 0)
-                joy.axes[1] = y  # Forward/Backward (Axis 1)
-                joy.axes[2] = z  # Rotation (Axis 2)
-                joy.axes[4] = th  # Height (Axis 4)
+                joy.axes[0] = x  # height
+                joy.axes[2] = y  # roatation
+                joy.axes[3] = z  # sidewats
+                joy.axes[4] = th  # forward/back
 
             elif key in buttonBindings.keys():
                 # Map number keys to buttons
