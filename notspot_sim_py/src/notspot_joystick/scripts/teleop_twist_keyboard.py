@@ -36,14 +36,18 @@ CTRL-C to quit
 
 # Key bindings for movement, rotation, and height
 moveBindings = {
-    'w': (0, 0, 0, 1),      # Forward (Axis 4)
-    's': (0, 0, 0, -1),     # Backward (Axis 4)
-    'a': (1, 0, 0, 0),      # Left (Axis 0)
-    'd': (-1, 0, 0, 0),     # Right (Axis 0)
-    'i': (0, 1, 0, 0),      # Increase height (Axis 2)
-    'k': (0, -1, 0, 0),     # Decrease height (Axis 2)
-    'j': (0, 0, 1, 0),      # Rotate left (Axis 3)
-    'l': (0, 0, -1, 0),     # Rotate right (Axis 3)
+    'w': (0, 0, 0, 1, 0, 0, 0, 0),     # Forward (Axis 4)
+    's': (0, 0, 0, -1, 0, 0, 0, 0),    # Backward (Axis 4)
+    'a': (1, 0, 0, 0, 0, 0, 0, 0),     # Left (Axis 0)
+    'd': (-1, 0, 0, 0, 0, 0, 0, 0),    # Right (Axis 0)
+    'i': (0, 1, 0, 0, 0, 0, 0, 0),     # Rotate left (Axis 1)
+    'k': (0, -1, 0, 0, 0, 0, 0, 0),    # Rotate right (Axis 1)
+    'j': (0, 0, 1, 0, 0, 0, 0, 0),     # Height up (Axis 2)
+    'l': (0, 0, -1, 0, 0, 0, 0, 0),    # Height down (Axis 2)
+    't': (0, 0, 0, 0, 0, 0, 1, 0),     # Custom (Axis 6)
+    'g': (0, 0, 0, 0, 0, 0, -1, 0),    # Custom (Axis 6)
+    'f': (0, 0, 0, 0, 0, 0, 0, 1),     # Custom (Axis 7)
+    'h': (0, 0, 0, 0, 0, 0, 0, -1),    # Custom (Axis 7)
 }
 
 # Button bindings for number keys
@@ -81,13 +85,15 @@ if __name__ == "__main__":
             joy.buttons = [0] * 12  # Initialize with 11 buttons
 
             if key in moveBindings.keys():
-                x, y, z, th = moveBindings[key]
+                values = moveBindings[key]
 
-                # Map key bindings to axes
-                joy.axes[0] = x  # Left/Right (Axis 0)
-                joy.axes[1] = y  # Forward/Backward (Axis 1)
-                joy.axes[2] = z  # Rotation (Axis 2)
-                joy.axes[4] = th  # Height (Axis 4)
+                if len(joy.axes) < 8:
+                    joy.axes = [0.0] * 8
+                
+                # Assign all values to the corresponding axes
+                for i in range(len(values)):
+                    if i < len(joy.axes):
+                        joy.axes[i] = values[i]
 
             elif key in buttonBindings.keys():
                 # Map number keys to buttons
