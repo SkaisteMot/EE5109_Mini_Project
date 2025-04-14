@@ -9,6 +9,7 @@ from . RestController import RestController
 from . TrotGaitController import TrotGaitController
 from . CrawlGaitController import CrawlGaitController
 from . StandController import StandController
+from . LQRGaitController import LQRGaitController
 
 class Robot(object):
     def __init__(self, body, legs, imu):
@@ -27,6 +28,10 @@ class Robot(object):
 
         self.crawlGaitController = CrawlGaitController(self.default_stance,
             stance_time = 0.55, swing_time = 0.45, time_step = 0.02)
+
+        self.lqrController = LQRGaitController(self.default_stance,
+            stance_time = 0.18, swing_time = 0.24, time_step = 0.02,
+            use_imu = imu)
             
         self.standController = StandController(self.default_stance)
 
@@ -61,6 +66,14 @@ class Robot(object):
                 self.currentController = self.standController
             self.command.stand_event = False
 
+        elif self.command.lqr_event:  # Handle LQR mode
+            if self.state.behavior_state == BehaviorState.REST:
+                self.state.behavior_state = BehaviorState.LQR
+                self.currentController = self.lqrController
+                self.currentController.pid_controller.reset()
+                self.state.ticks = 0
+            self.command.lqr_event = False
+
         elif self.command.rest_event:
             self.state.behavior_state = BehaviorState.REST
             self.currentController = self.restController
@@ -94,6 +107,13 @@ class Robot(object):
             self.command.trot_event = False
             self.command.crawl_event = False
             self.command.stand_event = True
+            self.command.rest_event = False
+
+        elif msg.buttons[9]: # LQR - using button 9
+            self.command.trot_event = False
+            self.command.crawl_event = False
+            self.command.stand_event = False
+            self.command.lqr_event = True
             self.command.rest_event = False
       
         self.currentController.updateStateCommand(msg, self.state, self.command)

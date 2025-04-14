@@ -29,7 +29,8 @@ Buttons (Number Keys):
    6 : Button 5
    7 : Button 6
    8 : Button 7
-   X : Stop
+   x : Stop
+   q : LQR Controller Mode
 
 CTRL-C to quit
 """
@@ -61,6 +62,7 @@ buttonBindings = {
     '7': 6,  # Button 6
     '8': 7,  # Button 7
     'x': 8,  # Stop Command
+    'q': 9,  # LQR Mode
 }
 
 def getKey():
@@ -82,7 +84,7 @@ if __name__ == "__main__":
             key = getKey()
             joy = Joy()
             joy.axes = [0.0] * 8  # Initialize with 8 axes
-            joy.buttons = [0] * 12  # Initialize with 11 buttons
+            joy.buttons = [0] * 12  # Initialize with 12 buttons
 
             if key in moveBindings.keys():
                 values = moveBindings[key]
