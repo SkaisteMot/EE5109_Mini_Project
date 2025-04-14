@@ -53,13 +53,6 @@ class TrotGaitController(GaitController):
 
         state.body_local_position[2] = msg.axes[1] * 0.03 # Height
 
-        # Diagonals
-        command.velocity[0] += msg.axes[6] * self.max_x_velocity  # Forward component
-        command.velocity[1] += msg.axes[6] * self.max_x_velocity  # Side component
-
-        command.velocity[0] -= msg.axes[7] * self.max_x_velocity  # Forward component
-        command.velocity[1] += msg.axes[7] * self.max_x_velocity  # Side component
-
         if self.use_button:
             if msg.buttons[7]:
                 self.use_imu = not self.use_imu
