@@ -58,7 +58,7 @@ class TrotGaitController(GaitController):
         command.velocity[1] += msg.axes[6] * self.max_x_velocity  # Side component
 
         command.velocity[0] -= msg.axes[7] * self.max_x_velocity  # Forward component
-        command.velocity[1] -= msg.axes[7] * self.max_x_velocity  # Side component
+        command.velocity[1] += msg.axes[7] * self.max_x_velocity  # Side component
 
         if self.use_button:
             if msg.buttons[7]:
