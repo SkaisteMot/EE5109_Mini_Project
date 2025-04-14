@@ -47,14 +47,15 @@ moveBindings = {
 
 # Button bindings for number keys
 buttonBindings = {
-    '1': 0,  # Button 0
-    '2': 1,  # Button 1
-    '3': 2,  # Button 2
-    '4': 3,  # Button 3
+    '1': 0,  # Rest Controller
+    '2': 1,  # Trot Gait Controller
+    '3': 2,  # Crawl Gait Controller
+    '4': 3,  # Stand Controller
     '5': 4,  # Button 4
     '6': 5,  # Button 5
     '7': 6,  # Button 6
     '8': 7,  # Button 7
+    'x': 8,  # Stop Command
 }
 
 def getKey():
@@ -76,7 +77,7 @@ if __name__ == "__main__":
             key = getKey()
             joy = Joy()
             joy.axes = [0.0] * 8  # Initialize with 8 axes
-            joy.buttons = [0] * 11  # Initialize with 11 buttons
+            joy.buttons = [0] * 12  # Initialize with 11 buttons
 
             if key in moveBindings.keys():
                 x, y, z, th = moveBindings[key]

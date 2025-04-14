@@ -47,8 +47,8 @@ class TrotGaitController(GaitController):
 
     def updateStateCommand(self, msg, state, command):
         command.velocity[0] = msg.axes[4] * self.max_x_velocity
-        command.velocity[1] = msg.axes[3] * self.max_y_velocity
-        command.yaw_rate = msg.axes[0] * self.max_yaw_rate
+        command.velocity[1] = msg.axes[0] * self.max_y_velocity # Changed from axes[3] to axes[0]
+        command.yaw_rate = msg.axes[2] * self.max_yaw_rate # Changed from axes[3] to axes[0]
 
         if self.use_button:
             if msg.buttons[7]:

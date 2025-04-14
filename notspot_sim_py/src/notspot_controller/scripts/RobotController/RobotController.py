@@ -68,7 +68,11 @@ class Robot(object):
             self.command.rest_event = False
 
     def joystick_command(self,msg):
-        if msg.buttons[0]: # rest
+        if msg.buttons[8]:  # Stop command (X key)
+            self.command.velocity = np.array([0., 0.])
+            self.command.yaw_rate = 0.
+            
+        elif msg.buttons[0]: # rest
             self.command.trot_event = False
             self.command.crawl_event = False
             self.command.stand_event = False
