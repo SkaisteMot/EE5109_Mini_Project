@@ -21,14 +21,15 @@ Rotation and Height:
    l : Decrease height (Axis 4)
 
 Buttons (Number Keys):
-   1 : Button 0
-   2 : Button 1
-   3 : Button 2
-   4 : Button 3
+   1 : Rest Controller
+   2 : Trot Gait Controller
+   3 : Crawl Gait Controller
+   4 : Stand Controller
    5 : Button 4
    6 : Button 5
    7 : Button 6
    8 : Button 7
+   X : Stop
 
 CTRL-C to quit
 """
