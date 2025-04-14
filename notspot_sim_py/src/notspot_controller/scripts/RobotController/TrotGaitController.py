@@ -46,7 +46,7 @@ class TrotGaitController(GaitController):
         self.pid_controller = PID_controller(0.15, 0.02, 0.002)
 
     def updateStateCommand(self, msg, state, command):
-        command.velocity[0] = msg.axes[4] * self.max_x_velocity # Straight
+        command.velocity[0] = msg.axes[3] * self.max_x_velocity # Straight
         command.velocity[1] = msg.axes[0] * self.max_y_velocity # Lateral
 
         command.yaw_rate = msg.axes[2] * self.max_yaw_rate # Rotate
