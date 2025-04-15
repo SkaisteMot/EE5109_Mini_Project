@@ -9,7 +9,6 @@ from . RestController import RestController
 from . TrotGaitController import TrotGaitController
 from . CrawlGaitController import CrawlGaitController
 from . StandController import StandController
-from . LQRController import LQRController
 
 class Robot(object):
     def __init__(self, body, legs, imu):
