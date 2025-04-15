@@ -6,6 +6,7 @@ import numpy as np
 import rospy
 from . GaitController import GaitController
 from . PIDController import PID_controller
+from . LQRController import LQR_controller
 from RoboticsUtilities.Transformations import rotxyz,rotz
 
 

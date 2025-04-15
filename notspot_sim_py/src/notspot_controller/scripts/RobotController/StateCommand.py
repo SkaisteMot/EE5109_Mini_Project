@@ -9,7 +9,6 @@ class BehaviorState(Enum):
     TROT = 1
     CRAWL = 2
     STAND = 3
-    LQR = 4
 
 class State(object):
     def __init__(self,default_height):
@@ -38,4 +37,3 @@ class Command(object):
         self.crawl_event = False
         self.rest_event = False
         self.stand_event = False
-        self.lqr_event = False

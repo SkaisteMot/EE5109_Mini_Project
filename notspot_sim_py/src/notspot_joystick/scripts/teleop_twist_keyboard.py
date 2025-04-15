@@ -30,7 +30,6 @@ Buttons (Number Keys):
    7 : Button 6
    8 : Button 7
    x : Stop
-   q : LQR Controller Mode
 
 CTRL-C to quit
 """
@@ -62,7 +61,6 @@ buttonBindings = {
     '7': 6,  # Button 6
     '8': 7,  # Button 7
     'x': 8,  # Stop Command
-    'q': 9,  # LQR Mode
 }
 
 def getKey():

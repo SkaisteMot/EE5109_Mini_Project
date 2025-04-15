@@ -5,6 +5,7 @@ import rospy
 import numpy as np
 from RoboticsUtilities.Transformations import rotxyz
 from . PIDController import PID_controller
+from .LQRController import LQRGaitController
 
 class RestController(object):
     def __init__(self, default_stance):
