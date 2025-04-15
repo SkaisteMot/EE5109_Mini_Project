@@ -8,24 +8,24 @@ class LQR_controller(object):
         self.dt = 0.02  # Default time step
         
         # Physical parameters (you may need to tune these)
-        self.inertia_roll = 0.01   # Estimated moment of inertia for roll (kg*m²)
-        self.inertia_pitch = 0.01  # Estimated moment of inertia for pitch (kg*m²)
-        self.damping_roll = 0.1    # Natural damping coefficient for roll
-        self.damping_pitch = 0.1   # Natural damping coefficient for pitch
+        self.inertia_roll = 0.015   # Estimated moment of inertia for roll (kg*m²)
+        self.inertia_pitch = 0.018  # Estimated moment of inertia for pitch (kg*m²)
+        self.damping_roll = 0.15    # Natural damping coefficient for roll
+        self.damping_pitch = 0.2   # Natural damping coefficient for pitch
         
         # Control output smoothing
         self.last_u = np.array([0.0, 0.0])
-        self.control_alpha = 0.4  # Smoothing factor for control outputs
+        self.control_alpha = 0.3  # Smoothing factor for control outputs
         
         # Cost matrices - penalize deviations from desired state
-        self.Q = np.diag([10.0, 1.0, 10.0, 1.0])  # [roll, roll_rate, pitch, pitch_rate]
-        self.R = np.diag([0.5, 0.5])              # penalize control effort
+        self.Q = np.diag([10.0, 1.0, 20.0, 2.0])  # [roll, roll_rate, pitch, pitch_rate]
+        self.R = np.diag([0.5, 0.002])              # penalize control effort
         
         # Internal state
         self.last_error = np.array([0.0, 0.0])
         self.estimated_vel = np.array([0.0, 0.0])
         self.last_time = rospy.Time.now()
-        self.derivative_alpha = 0.15  # Smoothing for derivatives
+        self.derivative_alpha = 0.1  # Smoothing for derivatives
         
         # Initialize matrices with default dt
         self.update_matrices(self.dt)
