@@ -5,15 +5,41 @@ class LQR_controller(object):
     def __init__(self):
         # desired roll and pitch angles
         self.desired_roll_pitch = np.array([0.0, 0.0])
-        self.dt = 0.02  # Assuming 50Hz control loop
-
+        self.dt = 0.02  # Default time step, used only for initialization
+        
+        # Control output smoothing
+        self.last_u = np.array([0.0, 0.0])
+        self.control_alpha = 0.4  # Smoothing factor for control outputs
+        
+        # Cost matrices
+        self.Q = np.diag([8.0, 0.5, 8.0, 0.5])  # [roll, roll_vel, pitch, pitch_vel]
+        self.R = np.diag([0.5, 0.5])           # penalize control effort
+        
+        # Internal state
+        self.last_error = np.array([0.0, 0.0])
+        self.estimated_vel = np.array([0.0, 0.0])
+        self.last_time = rospy.Time.now()
+        self.derivative_alpha = 0.15  # Smoothing for derivatives
+        
+        # Initialize matrices with default dt
+        self.update_matrices(self.dt)
+        
+        # Precompute gain for default dt
+        self.K = self.compute_lqr_gain()
+        
+        self.max_output = 1.0  # Higher values are hard for hardware to handle
+        self.gain_factor = 0.8  # Overall responsiveness
+    
+    def update_matrices(self, dt):
+        """Update A and B matrices with current dt"""
+        # Single dynamic model
         self.A_single = np.array([
-            [1.0, self.dt],
-            [-0.05 * self.dt, 0.95]  # Adding some natural damping
+            [1.0, dt],
+            [-0.05 * dt, 0.95]  # Natural damping
         ])
         self.B_single = np.array([
             [0.0],
-            [1.0 * self.dt] # Scale Control Authority
+            [1.0 * dt]  # Control authority
         ])
 
         # Build full state-space for roll + pitch
@@ -25,24 +51,9 @@ class LQR_controller(object):
             [self.B_single, np.zeros((2, 1))],
             [np.zeros((2, 1)), self.B_single]
         ])
-        
-        # Cost matrices
-        self.Q = np.diag([8.0, 0.5, 8.0, 0.5])  # [roll, roll_vel, pitch, pitch_vel]
-        self.R = np.diag([0.5, 0.5])           # penalize control effort
-        
-        # Internal state
-        self.last_error = np.array([0.0, 0.0])
-        self.estimated_vel = np.array([0.0, 0.0])
-        self.last_time = rospy.Time.now()
-        self.derivative_alpha = 0.15 # Reduce for more smoothing
-        
-        self.K = self.compute_lqr_gain()
-        self.max_output = 1.0  # Higher values are hard for hardware to handle
-        self.gain_factor = 0.8  # Overall responsiveness
     
     def compute_lqr_gain(self):   
         """Solves discrete-time Riccati equation for LQR gain."""
-        # Create a list of N + 1 elements for P matrices
         P = self.Q.copy()
         for _ in range(100):  # Iterative DARE solver
             BT_P = self.B.T @ P
@@ -62,8 +73,12 @@ class LQR_controller(object):
             dt = self.dt
         
         rospy.loginfo(f"dt = {dt}")
+        
+        # Update matrices with current dt and recompute gain
+        self.update_matrices(dt)
+        self.K = self.compute_lqr_gain()  # This is computationally expensive but more accurate
 
-       # Compute angle error
+        # Compute angle error
         current_error = self.desired_roll_pitch - np.array([roll, pitch])
 
         # Estimate velocity using smoothed numerical differentiation
@@ -83,7 +98,11 @@ class LQR_controller(object):
         ])
 
         # Compute control effort
-        u = -self.gain_factor * (self.K @ state)
+        u_raw = -self.gain_factor * (self.K @ state)
+        
+        # Apply smoothing to control outputs to prevent rapid changes
+        u = self.control_alpha * u_raw + (1 - self.control_alpha) * self.last_u
+        self.last_u = u
 
         # Debug print
         rospy.loginfo(f"[LQR] Raw Control: {state}, Control: {u}")
@@ -99,7 +118,8 @@ class LQR_controller(object):
     def reset(self):
         self.last_time = rospy.Time.now()
         self.last_error = np.array([0.0, 0.0])
-        self.last_error_vel = np.array([0.0, 0.0])
+        self.estimated_vel = np.array([0.0, 0.0])
+        self.last_u = np.array([0.0, 0.0])
     
     def desired_RP_angles(self, des_roll, des_pitch):
         self.desired_roll_pitch = np.array([des_roll, des_pitch])
