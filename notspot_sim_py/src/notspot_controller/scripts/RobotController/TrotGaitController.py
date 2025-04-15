@@ -65,7 +65,7 @@ class TrotGaitController(GaitController):
                 control_type = "PID" if self.use_imu else "None"
                 rospy.loginfo(f"Trot Gait Controller - Control mode: {control_type}")
 
-            elif msg.buttons[8]:
+            elif msg.buttons[9]:
                 self.use_lqr = not self.use_lqr
                 if self.use_lqr:
                     self.use_imu = False  # Turn off PID if LQR is enabled
@@ -81,7 +81,7 @@ class TrotGaitController(GaitController):
                 rospy.loginfo(f"Trot Gait Controller - Use autorest: {self.autoRest}")
             
         if not self.use_button:
-            if not(msg.buttons[6] or msg.buttons[7]):
+            if not(msg.buttons[6] or msg.buttons[7] or msg.buttons[9]):
                 self.use_button = True
 
     def step(self, state, command):

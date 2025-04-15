@@ -29,6 +29,7 @@ Buttons (Number Keys):
    6 : Button 5
    7 : Button 6
    8 : Button 7
+   9 : LQR Control
    x : Stop
 
 CTRL-C to quit
@@ -61,6 +62,8 @@ buttonBindings = {
     '7': 6,  # Button 6
     '8': 7,  # Button 7
     'x': 8,  # Stop Command
+    '9': 9,  # LQR Control
+
 }
 
 def getKey():
@@ -113,7 +116,7 @@ if __name__ == "__main__":
         # Reset the Joy message
         joy = Joy()
         joy.axes = [0.0] * 8
-        joy.buttons = [0] * 11
+        joy.buttons = [0] * 12
         joy_pub.publish(joy)
 
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
