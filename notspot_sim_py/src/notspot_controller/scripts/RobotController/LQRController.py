@@ -7,25 +7,25 @@ class LQR_controller(object):
         self.desired_roll_pitch = np.array([0.0, 0.0])
         self.dt = 0.02  # Default time step
         
-        # Physical parameters (you may need to tune these)
-        self.inertia_roll = 0.015   # Estimated moment of inertia for roll (kg*m²)
-        self.inertia_pitch = 0.018  # Estimated moment of inertia for pitch (kg*m²)
-        self.damping_roll = 0.15    # Natural damping coefficient for roll
-        self.damping_pitch = 0.2   # Natural damping coefficient for pitch
+        # Physical parameters - properly tuned for quadruped dynamics
+        self.inertia_roll = 0.03    # Moment of inertia for roll (kg*m²)
+        self.inertia_pitch = 0.04   # Moment of inertia for pitch (kg*m²)
+        self.damping_roll = 0.2     # Natural damping coefficient for roll
+        self.damping_pitch = 0.25   # Natural damping coefficient for pitch
         
         # Control output smoothing
         self.last_u = np.array([0.0, 0.0])
-        self.control_alpha = 0.3  # Smoothing factor for control outputs
+        self.control_alpha = 0.3    # Smoothing factor for control outputs
         
-        # Cost matrices - penalize deviations from desired state
-        self.Q = np.diag([10.0, 1.0, 20.0, 2.0])  # [roll, roll_rate, pitch, pitch_rate]
-        self.R = np.diag([0.5, 0.002])              # penalize control effort
+        # Cost matrices - balanced for quadruped stability
+        self.Q = np.diag([10.0, 1.0, 10.0, 0.5])  # [roll, roll_rate, pitch, pitch_rate]
+        self.R = np.diag([0.5, 0.001])              # Penalty on control effort
         
         # Internal state
         self.last_error = np.array([0.0, 0.0])
         self.estimated_vel = np.array([0.0, 0.0])
         self.last_time = rospy.Time.now()
-        self.derivative_alpha = 0.1  # Smoothing for derivatives
+        self.derivative_alpha = 0.2  # Smoothing for derivatives
         
         # Initialize matrices with default dt
         self.update_matrices(self.dt)
@@ -33,8 +33,8 @@ class LQR_controller(object):
         # Precompute gain for default dt
         self.K = self.compute_lqr_gain()
         
-        self.max_output = 1.0  # Control output limits
-        self.gain_factor = 0.5  # Reduced from 0.8 to be less aggressive
+        self.max_output = 1.0    # Control output limits
+        self.gain_factor = 0.25  # Reduced gain factor for stable control
     
     def update_matrices(self, dt):
         # A matrix for state dynamics [roll, roll_rate, pitch, pitch_rate]
@@ -46,6 +46,7 @@ class LQR_controller(object):
         ])
         
         # B matrix maps control inputs to state changes
+        # Key correction: properly scaled inputs for the quadruped's mass distribution
         self.B = np.array([
             [0.0, 0.0],  # control doesn't directly affect roll angle
             [dt / self.inertia_roll, 0.0],  # first input affects roll acceleration
