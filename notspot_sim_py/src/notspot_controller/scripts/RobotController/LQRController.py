@@ -27,8 +27,8 @@ class LQR_controller(object):
         ])
         
         # Cost matrices
-        self.Q = np.diag([2.0, 0.5, 2.0, 0.5])  # [roll, roll_vel, pitch, pitch_vel]
-        self.R = np.diag([0.05, 0.05])           # penalize control effort
+        self.Q = np.diag([10.0, 1.0, 10.0, 1.0])  # [roll, roll_vel, pitch, pitch_vel]
+        self.R = np.diag([0.1, 0.1])           # penalize control effort
         
         # Internal state
         self.last_error = np.array([0.0, 0.0])
@@ -60,7 +60,8 @@ class LQR_controller(object):
         # If dt is too large or too small, use default
         if dt < 0.001 or dt > 0.1:
             dt = self.dt
-        self.last_time = t_now
+        
+        rospy.loginfo(f"dt = {dt}")
 
        # Compute angle error
         current_error = self.desired_roll_pitch - np.array([roll, pitch])
@@ -85,13 +86,13 @@ class LQR_controller(object):
         u = -self.K @ state
 
         # Debug print
-        rospy.loginfo(f"[LQR] State: {state}, Control: {u}")
+        rospy.loginfo(f"[LQR] Raw Control: {state}, Control: {u}")
 
         # Clip output
         u = np.clip(u, -self.max_output, self.max_output)
 
         # Debug print
-        rospy.loginfo(f"[LQR] State: {state}, Control: {u}")
+        rospy.loginfo(f"[LQR] Clipped Control: {u}")
 
         return u
     
