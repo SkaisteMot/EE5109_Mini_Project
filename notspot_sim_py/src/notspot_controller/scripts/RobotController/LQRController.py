@@ -27,7 +27,7 @@ class LQR_controller(object):
         ])
         
         # Cost matrices
-        self.Q = np.diag([1.0, 1.0, 1.0, 1.0])  # [roll, roll_vel, pitch, pitch_vel]
+        self.Q = np.diag([2.0, 0.5, 2.0, 0.5])  # [roll, roll_vel, pitch, pitch_vel]
         self.R = np.diag([0.05, 0.05])           # penalize control effort
         
         # Internal state
