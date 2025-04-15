@@ -9,11 +9,11 @@ class LQR_controller(object):
 
         self.A_single = np.array([
             [1.0, self.dt],
-            [-0.1 * self.dt, 0.9]  # Adding some natural damping
+            [-0.05 * self.dt, 0.95]  # Adding some natural damping
         ])
         self.B_single = np.array([
             [0.0],
-            [0.5 * self.dt] #  # Scaled down by 0.5
+            [1.0 * self.dt] # Scale Control Authority
         ])
 
         # Build full state-space for roll + pitch
@@ -27,20 +27,20 @@ class LQR_controller(object):
         ])
         
         # Cost matrices
-        self.Q = np.diag([5.0, 0.5, 5.0, 0.5])  # [roll, roll_vel, pitch, pitch_vel]
-        self.R = np.diag([1.0, 1.0])           # penalize control effort
+        self.Q = np.diag([8.0, 0.5, 8.0, 0.5])  # [roll, roll_vel, pitch, pitch_vel]
+        self.R = np.diag([0.5, 0.5])           # penalize control effort
         
         # Internal state
         self.last_error = np.array([0.0, 0.0])
         self.estimated_vel = np.array([0.0, 0.0])
         self.last_time = rospy.Time.now()
-        self.derivative_alpha = 0.1 # Reduce for more smoothing
+        self.derivative_alpha = 0.15 # Reduce for more smoothing
         
         self.K = self.compute_lqr_gain()
 
         self.max_output = 1.0 # Higher values are hard for hardware to handle
 
-        self.gain_factor = 0.3  # Adjust this to tune overall responsiveness
+        self.gain_factor = 0.8  # Adjust this to tune overall responsiveness
     
     def compute_lqr_gain(self):   
         """Solves discrete-time Riccati equation for LQR gain."""
