@@ -99,10 +99,6 @@ class LQR_controller(object):
 
         # Compute control effort
         u_raw = -self.gain_factor * (self.K @ state)
-        
-        # Apply smoothing to control outputs to prevent rapid changes
-        u = self.control_alpha * u_raw + (1 - self.control_alpha) * self.last_u
-        self.last_u = u
 
         # Debug print
         rospy.loginfo(f"[LQR] Raw Control: {state}, Control: {u}")
