@@ -14,6 +14,7 @@ class TrotGaitController(GaitController):
     def __init__(self, default_stance, stance_time, swing_time, time_step, use_imu):
         self.use_imu = use_imu
         self.use_button = True
+        self.use_lqr = False
         self.autoRest = True
         self.trotNeeded = True
 
@@ -45,6 +46,7 @@ class TrotGaitController(GaitController):
         # TODO: tune kp, ki and kd
         #                                     kp    ki    kd
         self.pid_controller = PID_controller(0.15, 0.02, 0.002)
+        self.lqr_controller = LQR_controller()
 
     def updateStateCommand(self, msg, state, command):
         command.velocity[0] = msg.axes[3] * self.max_x_velocity # Straight
@@ -57,8 +59,19 @@ class TrotGaitController(GaitController):
         if self.use_button:
             if msg.buttons[7]:
                 self.use_imu = not self.use_imu
+                if self.use_imu:
+                    self.use_lqr = False  # Turn off LQR if PID is enabled
                 self.use_button = False
-                rospy.loginfo(f"Trot Gait Controller - Use roll/pitch compensation: {self.use_imu}")
+                control_type = "PID" if self.use_imu else "None"
+                rospy.loginfo(f"Trot Gait Controller - Control mode: {control_type}")
+
+            elif msg.buttons[8]:
+                self.use_lqr = not self.use_lqr
+                if self.use_lqr:
+                    self.use_imu = False  # Turn off PID if LQR is enabled
+                self.use_button = False
+                control_type = "LQR" if self.use_lqr else "None"
+                rospy.loginfo(f"Trot Gait Controller - Control mode: {control_type}")
 
             elif msg.buttons[6]:
                 self.autoRest = not self.autoRest
@@ -102,6 +115,15 @@ class TrotGaitController(GaitController):
 
                 rot = rotxyz(roll_compensation,pitch_compensation,0)
                 new_foot_locations = np.matmul(rot,new_foot_locations)
+            
+            elif self.use_lqr:
+                compensation = self.lqr_controller.run(state.imu_roll, state.imu_pitch)
+                roll_compensation = -compensation[0]
+                pitch_compensation = -compensation[1]
+
+                rot = rotxyz(roll_compensation, pitch_compensation, 0)
+                new_foot_locations = np.matmul(rot, new_foot_locations)
+                                               
             state.ticks += 1
             return new_foot_locations
         else:
@@ -186,3 +208,4 @@ class TrotStanceController(object):
         (delta_pos, delta_ori) = self.position_delta(leg_index, state, command)
         next_foot_location = np.matmul(delta_ori, foot_location) + delta_pos
         return next_foot_location
+    
