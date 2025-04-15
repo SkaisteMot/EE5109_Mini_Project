@@ -36,13 +36,6 @@ class LQR_controller(object):
         self.last_time = rospy.Time.now()
         self.derivative_alpha = 0.15 # Reduce for more smoothing
         
-        # Control output smoothing
-        self.last_u = np.array([0.0, 0.0])
-        self.control_alpha = 0.4  # Smoothing factor for control outputs (higher = more responsive)
-        
-        # Error deadband to ignore small errors
-        self.deadband = 0.005  # Radians (~0.3 degrees)
-        
         self.K = self.compute_lqr_gain()
         self.max_output = 1.0  # Higher values are hard for hardware to handle
         self.gain_factor = 0.8  # Overall responsiveness
@@ -73,11 +66,6 @@ class LQR_controller(object):
        # Compute angle error
         current_error = self.desired_roll_pitch - np.array([roll, pitch])
 
-        # Apply deadband to ignore tiny errors
-        for i in range(2):
-            if abs(current_error[i]) < self.deadband:
-                current_error[i] = 0.0
-
         # Estimate velocity using smoothed numerical differentiation
         raw_vel = (current_error - self.last_error) / dt
         self.estimated_vel = (
@@ -95,11 +83,7 @@ class LQR_controller(object):
         ])
 
         # Compute control effort
-        u_raw = -self.gain_factor * (self.K @ state)
-
-        # Apply smoothing to control outputs to prevent rapid changes
-        u = self.control_alpha * u_raw + (1 - self.control_alpha) * self.last_u
-        self.last_u = u
+        u = -self.gain_factor * (self.K @ state)
 
         # Debug print
         rospy.loginfo(f"[LQR] Raw Control: {state}, Control: {u}")
