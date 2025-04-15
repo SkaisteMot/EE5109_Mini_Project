@@ -7,19 +7,22 @@ class LQR_controller(object):
         self.desired_roll_pitch = np.array([0.0, 0.0])
         self.dt = 0.02  # Default time step
         
-        # Physical parameters - properly tuned for quadruped dynamics
-        self.inertia_roll = 0.03    # Moment of inertia for roll (kg*m²)
-        self.inertia_pitch = 0.04   # Moment of inertia for pitch (kg*m²)
-        self.damping_roll = 0.2     # Natural damping coefficient for roll
-        self.damping_pitch = 0.25   # Natural damping coefficient for pitch
+        # Physical parameters from URDF
+        # From the base_link inertia in URDF: ixx="0.00058474", iyy="0.00029699"
+        self.inertia_roll = 0.00058474   # Roll moment of inertia from URDF
+        self.inertia_pitch = 0.00029699  # Pitch moment of inertia from URDF
+        
+        # Damping coefficients based on physical properties
+        self.damping_roll = 0.15    # Natural damping coefficient for roll
+        self.damping_pitch = 0.15   # Natural damping coefficient for pitch
         
         # Control output smoothing
         self.last_u = np.array([0.0, 0.0])
         self.control_alpha = 0.3    # Smoothing factor for control outputs
         
-        # Cost matrices - balanced for quadruped stability
-        self.Q = np.diag([10.0, 1.0, 10.0, 0.5])  # [roll, roll_rate, pitch, pitch_rate]
-        self.R = np.diag([0.5, 0.001])              # Penalty on control effort
+        # Cost matrices - tuned for the actual robot inertia
+        self.Q = np.diag([20.0, 1.0, 25.0, 1.0])  # [roll, roll_rate, pitch, pitch_rate]
+        self.R = np.diag([0.8, 0.8])              # Control effort penalty
         
         # Internal state
         self.last_error = np.array([0.0, 0.0])
@@ -34,7 +37,7 @@ class LQR_controller(object):
         self.K = self.compute_lqr_gain()
         
         self.max_output = 1.0    # Control output limits
-        self.gain_factor = 0.25  # Reduced gain factor for stable control
+        self.gain_factor = 0.18  # Adjusted based on actual inertia values
     
     def update_matrices(self, dt):
         # A matrix for state dynamics [roll, roll_rate, pitch, pitch_rate]
@@ -46,7 +49,7 @@ class LQR_controller(object):
         ])
         
         # B matrix maps control inputs to state changes
-        # Key correction: properly scaled inputs for the quadruped's mass distribution
+        # Scaled for the robot's actual inertia values
         self.B = np.array([
             [0.0, 0.0],  # control doesn't directly affect roll angle
             [dt / self.inertia_roll, 0.0],  # first input affects roll acceleration
