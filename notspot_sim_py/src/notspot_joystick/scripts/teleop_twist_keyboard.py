@@ -27,8 +27,8 @@ Buttons (Number Keys):
    4 : Stand Controller
    5 : Button 4
    6 : Button 5
-   7 : Button 6
-   8 : Button 7
+   7 : Stop - (Trot ONLY)
+   8 : PID Control
    9 : LQR Control
    x : Stop
 
