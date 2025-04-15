@@ -37,48 +37,37 @@ class LQR_controller(object):
         self.gain_factor = 0.5  # Reduced from 0.8 to be less aggressive
     
     def update_matrices(self, dt):
-        """Update A and B matrices with current dt and physical model"""
-        # A matrix for roll dynamics [angle, angular_rate]
-        roll_A = np.array([
-            [1.0, dt],  # angle += angular_rate * dt
-            [0, 1.0 - (self.damping_roll * dt / self.inertia_roll)]  # angular_rate decays with damping
+        # A matrix for state dynamics [roll, roll_rate, pitch, pitch_rate]
+        self.A = np.array([
+            [1.0, dt,  0.0, 0.0],  # roll += roll_rate * dt
+            [0.0, 1.0 - (self.damping_roll * dt / self.inertia_roll), 0.0, 0.0],  # roll_rate
+            [0.0, 0.0, 1.0, dt],  # pitch += pitch_rate * dt
+            [0.0, 0.0, 0.0, 1.0 - (self.damping_pitch * dt / self.inertia_pitch)]  # pitch_rate
         ])
         
-        # B matrix for roll control input
-        roll_B = np.array([
-            [0],  # control doesn't directly affect angle
-            [dt / self.inertia_roll]  # control torque affects angular acceleration
-        ])
-        
-        # A matrix for pitch dynamics [angle, angular_rate]
-        pitch_A = np.array([
-            [1.0, dt],  # angle += angular_rate * dt
-            [0, 1.0 - (self.damping_pitch * dt / self.inertia_pitch)]  # angular_rate decays with damping
-        ])
-        
-        # B matrix for pitch control input
-        pitch_B = np.array([
-            [0],  # control doesn't directly affect angle
-            [dt / self.inertia_pitch]  # control torque affects angular acceleration
-        ])
-
-        # Build full state-space model
-        self.A = np.block([
-            [roll_A, np.zeros((2, 2))],
-            [np.zeros((2, 2)), pitch_A]
-        ])
-        self.B = np.block([
-            [roll_B, np.zeros((2, 1))],
-            [np.zeros((2, 1)), pitch_B]
+        # B matrix maps control inputs to state changes
+        self.B = np.array([
+            [0.0, 0.0],  # control doesn't directly affect roll angle
+            [dt / self.inertia_roll, 0.0],  # first input affects roll acceleration
+            [0.0, 0.0],  # control doesn't directly affect pitch angle
+            [0.0, dt / self.inertia_pitch]  # second input affects pitch acceleration
         ])
     
     def compute_lqr_gain(self):   
         """Solves discrete-time Riccati equation for LQR gain."""
         P = self.Q.copy()
-        for _ in range(100):  # Iterative DARE solver
+        # Iterative DARE solver with convergence check
+        for _ in range(100):  
             BT_P = self.B.T @ P
             K_temp = np.linalg.inv(self.R + BT_P @ self.B) @ BT_P @ self.A
-            P = self.Q + self.A.T @ P @ (self.A - self.B @ K_temp)
+            P_new = self.Q + self.A.T @ P @ (self.A - self.B @ K_temp)
+            
+            # Check for convergence
+            if np.allclose(P, P_new, rtol=1e-5):
+                break
+                
+            P = P_new
+            
         K = np.linalg.inv(self.R + self.B.T @ P @ self.B) @ self.B.T @ P @ self.A
         return K
     
