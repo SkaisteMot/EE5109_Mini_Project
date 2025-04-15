@@ -59,8 +59,8 @@ buttonBindings = {
     '4': 3,  # Stand Controller
     '5': 4,  # Button 4
     '6': 5,  # Button 5
-    '7': 6,  # Button 6
-    '8': 7,  # Button 7
+    '7': 6,  # Stop - (Trot ONLY)
+    '8': 7,  # PID Control
     'x': 8,  # Stop Command
     '9': 9,  # LQR Control
 
