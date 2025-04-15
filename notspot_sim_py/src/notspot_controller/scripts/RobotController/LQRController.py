@@ -84,8 +84,14 @@ class LQR_controller(object):
         # Compute control effort
         u = -self.K @ state
 
+        # Debug print
+        rospy.loginfo(f"[LQR] State: {state}, Control: {u}")
+
         # Clip output
         u = np.clip(u, -self.max_output, self.max_output)
+
+        # Debug print
+        rospy.loginfo(f"[LQR] State: {state}, Control: {u}")
 
         return u
     
