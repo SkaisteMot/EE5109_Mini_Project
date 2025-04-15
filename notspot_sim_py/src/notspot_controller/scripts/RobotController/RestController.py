@@ -5,7 +5,7 @@ import rospy
 import numpy as np
 from RoboticsUtilities.Transformations import rotxyz
 from . PIDController import PID_controller
-from .LQRController import LQRGaitController
+from .LQRController import LQR_controller
 
 class RestController(object):
     def __init__(self, default_stance):
@@ -14,9 +14,11 @@ class RestController(object):
         # TODO: tune kp, ki and kd
         #                                     kp     ki    kd
         self.pid_controller = PID_controller(0.75, 2.29, 0.0)
+        self.lqr_controller = LQR_controller()
         self.use_imu = False
         self.use_button = True
         self.pid_controller.reset()
+        self.lqr_controller.reset()
         
     def updateStateCommand(self, msg, state, command):
         # local body position
