@@ -5,13 +5,18 @@
   <!-- Start Gazebo with NotSpot -->
   <include file="$(find notspot)/launch/run_robot_gazebo.launch" />
   
-  <!-- TF Tree Setup - First connect the base_link to odom -->
-  <node pkg="tf" type="static_transform_publisher" name="base_link_to_odom"
-        args="0 0 0 0 0 0 base_link odom 100" />
-  
-  <!-- Then connect odom to map -->
-  <node pkg="tf" type="static_transform_publisher" name="odom_to_map"
-        args="0 0 0 0 0 0 odom map 100" />
+  <!-- TF Tree Setup - Complete chain from world to base_link -->
+  <!-- Connect world to map -->
+  <node pkg="tf" type="static_transform_publisher" name="world_to_map"
+        args="0 0 0 0 0 0 world map 100" />
+        
+  <!-- Connect map to odom -->
+  <node pkg="tf" type="static_transform_publisher" name="map_to_odom"
+        args="0 0 0 0 0 0 map odom 100" />
+        
+  <!-- Connect odom to base_link -->
+  <node pkg="tf" type="static_transform_publisher" name="odom_to_base_link"
+        args="0 0 0 0 0 0 odom base_link 100" />
   
   <!-- Start gmapping for simultaneous mapping -->
   <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen">
