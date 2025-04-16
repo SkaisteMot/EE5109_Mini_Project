@@ -1,0 +1,10 @@
+<launch>
+  <node pkg="amcl" type="amcl" name="amcl">
+    <param name="odom_frame_id" value="odom"/>
+    <param name="odom_model_type" value="diff"/>
+    <param name="base_frame_id" value="base_link"/>
+    <param name="update_min_d" value="0.1"/>
+    <param name="update_min_a" value="0.2"/>
+    <param name="use_map_topic" value="false"/>
+  </node>
+</launch>
