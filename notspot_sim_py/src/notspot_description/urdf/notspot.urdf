@@ -9,6 +9,8 @@
 
   <!-- Maximum torque -->
   <xacro:property name="effort_limit" value="1.4" />
+  <xacro:include filename="lidar.xacro" />
+  <xacro:include filename="camera.xacro" />
 
   <!-- base_link -->
   <link name="base_link">
