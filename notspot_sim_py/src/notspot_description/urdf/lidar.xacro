@@ -53,11 +53,7 @@
                     <max>12</max>
                 </range>
             </ray>
-            <plugin name="laser_controller" filename="libgazebo_ros_block_laser.so">
-                <ros>
-                    <argument>~/out:=scan</argument>
-                </ros>
-                <output_type>sensor_msgs/LaserScan</output_type>
+            <plugin name="laser_controller" filename="libgazebo_ros_laser.so">
                 <frame_name>laser_frame</frame_name>
             </plugin>
         </sensor>
