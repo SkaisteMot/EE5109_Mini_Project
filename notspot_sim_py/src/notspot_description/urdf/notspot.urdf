@@ -9,6 +9,7 @@
 
   <!-- Maximum torque -->
   <xacro:property name="effort_limit" value="1.4" />
+  <xacro:include filename="inertial_macros.xacro" />
   <xacro:include filename="lidar.xacro" />
   <xacro:include filename="camera.xacro" />
 
