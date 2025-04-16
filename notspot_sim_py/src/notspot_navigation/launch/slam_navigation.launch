@@ -1,0 +1,24 @@
+<launch>
+  <!-- Start Gazebo with NotSpot -->
+  <include file="$(find notspot)/launch/run_robot_gazebo.launch" />
+  
+  <!-- Start gmapping for simultaneous mapping -->
+  <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen">
+    <param name="scan" value="/scan"/>
+    <param name="base_frame" value="base_link"/>
+    <param name="odom_frame" value="odom"/>
+    <param name="map_update_interval" value="1.0"/>
+  </node>
+
+  <!-- Move base -->
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+    <rosparam file="$(find notspot_navigation)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find notspot_navigation)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find notspot_navigation)/config/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find notspot_navigation)/config/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find notspot_navigation)/config/base_local_planner_params.yaml" command="load" />
+  </node>
+  
+  <!-- Start cmd_vel to joints converter -->
+  <node pkg="notspot_navigation" type="cmd_vel_to_joints.py" name="cmd_vel_to_joints" output="screen"/>
+</launch>
