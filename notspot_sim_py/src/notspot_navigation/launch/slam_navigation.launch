@@ -11,6 +11,7 @@
   </node>
 
   <!-- Move base -->
+  <node pkg="notspot_navigation" type="simple_odom_publisher.py" name="odom_publisher" output="screen"/>
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
     <rosparam file="$(find notspot_navigation)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
     <rosparam file="$(find notspot_navigation)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
