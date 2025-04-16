@@ -1,0 +1,10 @@
+<launch>
+  <!-- Start Gazebo with NotSpot -->
+  <include file="$(find notspot)/launch/run_robot_gazebo.launch" />
+  
+  <!-- Start navigation stack -->
+  <include file="$(find notspot_navigation)/launch/navigation.launch" />
+  
+  <!-- Start cmd_vel to joints converter -->
+  <node pkg="notspot_navigation" type="cmd_vel_to_joints.py" name="cmd_vel_to_joints" output="screen"/>
+</launch>
