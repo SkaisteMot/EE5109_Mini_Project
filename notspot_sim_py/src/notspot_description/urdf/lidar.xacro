@@ -54,6 +54,7 @@
                 </range>
             </ray>
             <plugin name="laser_controller" filename="libgazebo_ros_laser.so">
+                <topicName>scan</topicName>
                 <frame_name>laser_frame</frame_name>
             </plugin>
         </sensor>
