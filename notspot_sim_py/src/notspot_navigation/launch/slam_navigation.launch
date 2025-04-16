@@ -1,4 +1,6 @@
 <launch>
+
+  <param name="use_sim_time" value="true" />
   <!-- Start Gazebo with NotSpot -->
   <include file="$(find notspot)/launch/run_robot_gazebo.launch" />
   
