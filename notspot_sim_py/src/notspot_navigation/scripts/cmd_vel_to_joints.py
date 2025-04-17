@@ -22,6 +22,11 @@ class CmdVelToJoints:
         self.linear_y_scale = 1.0 / self.max_y_velocity
         self.angular_z_scale = 1.0 / self.max_yaw_rate
         
+        # Boost factors for simulation environment
+        self.forward_boost = 2.5  # Amplify forward movement signals
+        self.rotation_reduction = 0.7  # Reduce rotation during forward movement
+        self.movement_threshold = 0.04  # Minimum speed to apply boost
+        
         # Subscribe to cmd_vel topic
         rospy.Subscriber('/cmd_vel', Twist, self.cmd_vel_callback)
         
@@ -43,6 +48,7 @@ class CmdVelToJoints:
         rospy.loginfo(f"CmdVelToJoints node initialized with {self.auto_mode} gait parameters")
         rospy.loginfo(f"* MAXIMUM VALUES - X: {self.max_x_velocity} m/s, Y: {self.max_y_velocity} m/s, YAW: {self.max_yaw_rate} rad/s")
         rospy.loginfo(f"* SCALE FACTORS - X: {self.linear_x_scale}, Y: {self.linear_y_scale}, YAW: {self.angular_z_scale}")
+        rospy.loginfo(f"* BOOST FACTORS - Forward: {self.forward_boost}x, Rotation reduction: {self.rotation_reduction}x")
         
         # Timer for keeping the robot in the right mode
         rospy.Timer(rospy.Duration(1.0), self.mode_timer_callback)
@@ -192,29 +198,30 @@ class CmdVelToJoints:
         # Log scaled values
         rospy.logdebug(f"Scaled values: linear_x={linear_x:.4f}, linear_y={linear_y:.4f}, angular_z={angular_z:.4f}")
         
-        # INVESTIGATE ALTERNATIVE MAPPINGS
-        # Try different axis mappings - TrotGaitController.py:
-        # self.target_joy.axes = msg.axes
-        # command.velocity[0] = msg.axes[3] * self.max_x_velocity # Straight - AXIS 3
-        # command.velocity[1] = msg.axes[0] * self.max_y_velocity # Lateral - AXIS 0
-        # command.yaw_rate = msg.axes[2] * self.max_yaw_rate      # Rotation - AXIS 2
-        
-        # STANDARD MAPPING (Should match TrotGaitController.updateStateCommand)
-        joy_msg.axes[3] = linear_x    # Forward/backward on axis 3
-        joy_msg.axes[0] = linear_y    # Left/right on axis 0  
-        joy_msg.axes[2] = angular_z   # Rotation on axis 2
-        
-        # Boost linear movement signal to overcome friction
-        if abs(linear_x) > 0.1:  # If there's a significant forward command
-            # Boost it slightly to overcome inertia
-            joy_msg.axes[3] = linear_x * 1.5
-            if joy_msg.axes[3] > 1.0:
-                joy_msg.axes[3] = 1.0
-            elif joy_msg.axes[3] < -1.0:
-                joy_msg.axes[3] = -1.0
+        # BOOST FORWARD MOVEMENT - This is the key change
+        if abs(linear_x) > self.movement_threshold:
+            # Increase the forward command to overcome friction/inertia
+            boosted_linear_x = linear_x * self.forward_boost
+            # Clamp to valid range [-1, 1]
+            if boosted_linear_x > 1.0:
+                boosted_linear_x = 1.0
+            elif boosted_linear_x < -1.0:
+                boosted_linear_x = -1.0
                 
-            # Reduce yaw to prioritize forward motion
-            joy_msg.axes[2] = angular_z * 0.7
+            # Apply boosted value
+            joy_msg.axes[3] = boosted_linear_x
+            
+            # Reduce rotation during forward movement for stability
+            joy_msg.axes[2] = angular_z * self.rotation_reduction
+            
+            rospy.loginfo(f"Boosting forward movement: {linear_x:.3f} → {boosted_linear_x:.3f}")
+        else:
+            # For small or zero movements, use standard mapping
+            joy_msg.axes[3] = linear_x    # Forward/backward on axis 3
+            joy_msg.axes[2] = angular_z   # Rotation on axis 2
+        
+        # Always map lateral movement normally
+        joy_msg.axes[0] = linear_y    # Left/right on axis 0
         
         # Additional axes value to ensure robot is in proper height state
         joy_msg.axes[1] = 0.0         # Height control
@@ -225,8 +232,8 @@ class CmdVelToJoints:
         # Publish the joy message
         self.joy_pub.publish(joy_msg)
         
-        # Log detailed values every time for debugging
-        rospy.loginfo(f"CMD_VEL to JOY: x={linear_x:.3f}→axis3={joy_msg.axes[3]:.3f}, y={linear_y:.3f}→axis0={joy_msg.axes[0]:.3f}, θ={angular_z:.3f}→axis2={joy_msg.axes[2]:.3f}")
+        # Log detailed values for debugging
+        rospy.loginfo(f"CMD_VEL to JOY: x={msg.linear.x:.3f}→axis3={joy_msg.axes[3]:.3f}, y={msg.linear.y:.3f}→axis0={joy_msg.axes[0]:.3f}, θ={msg.angular.z:.3f}→axis2={joy_msg.axes[2]:.3f}")
 
 if __name__ == '__main__':
     try:
