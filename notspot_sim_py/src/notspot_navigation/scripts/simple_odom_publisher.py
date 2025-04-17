@@ -52,11 +52,11 @@ class SimpleOdomPublisher:
         rate = rospy.Rate(20.0)  # 20Hz
         while not rospy.is_shutdown():
             self.publish_odom()
-            self.check_tf_tree()
+            #self.check_tf_tree()
             rate.sleep()
     
-    def check_tf_tree(self):
-        """Check and publish additional transforms if needed"""
+    """def check_tf_tree(self):
+        ""Check and publish additional transforms if needed""
         try:
             # Check if map->odom transform exists
             self.tf_listener.waitForTransform("map", "odom", rospy.Time(0), rospy.Duration(0.1))
@@ -69,7 +69,7 @@ class SimpleOdomPublisher:
                     rospy.Time.now(),
                     "odom",
                     "map"
-                )
+                )"""
     
     def imu_callback(self, msg):
         """Store orientation from IMU"""
