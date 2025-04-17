@@ -21,6 +21,9 @@ class SimpleOdomPublisher:
         self.vy = 0.0
         self.vth = 0.0
         
+        # Robot height for correct positioning (matches default_height in RobotController.py)
+        self.robot_height = 0.15
+        
         # IMU data for orientation
         self.imu_orientation = None
         rospy.Subscriber('/notspot_imu/base_link_orientation', Imu, self.imu_callback)
@@ -88,9 +91,9 @@ class SimpleOdomPublisher:
         else:
             odom_quat = tf.transformations.quaternion_from_euler(0, 0, self.th)
         
-        # Publish transform over tf
+        # Publish transform over tf - now including the robot_height for z value
         self.odom_broadcaster.sendTransform(
-            (self.x, self.y, 0),
+            (self.x, self.y, self.robot_height),  # Added robot_height to z-position
             odom_quat,
             self.current_time,
             "base_link",
@@ -103,8 +106,8 @@ class SimpleOdomPublisher:
         odom.header.frame_id = "odom"
         odom.child_frame_id = "base_link"
         
-        # Set the position
-        odom.pose.pose = Pose(Point(self.x, self.y, 0.), Quaternion(*odom_quat))
+        # Set the position - also include robot_height in the odometry message
+        odom.pose.pose = Pose(Point(self.x, self.y, self.robot_height), Quaternion(*odom_quat))
         
         # Set the velocity
         odom.twist.twist = Twist(Vector3(self.vx, self.vy, 0), Vector3(0, 0, self.vth))

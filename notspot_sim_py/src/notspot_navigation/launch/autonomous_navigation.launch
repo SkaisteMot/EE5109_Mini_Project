@@ -9,6 +9,11 @@
   <!-- Add world to map transform to satisfy lidar expectations -->
   <node pkg="tf" type="static_transform_publisher" name="world_to_map"
         args="0 0 0 0 0 0 world map 100" />
+  
+  <!-- Add a base_footprint frame at the ground level -->
+  <node pkg="tf" type="static_transform_publisher" name="base_footprint"
+        args="0 0 0.15 0 0 0 base_link base_footprint 100" />
+  
   <!-- The odom->base_link transform is published by the robot controller or our odom node -->
   <!-- The map->odom transform will be published by gmapping -->
   
