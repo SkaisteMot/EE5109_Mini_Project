@@ -4,6 +4,7 @@ import rospy
 import tf
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point, Pose, Quaternion, Twist, Vector3
+from sensor_msgs.msg import Imu
 
 class SimpleOdomPublisher:
     def __init__(self):
@@ -20,32 +21,54 @@ class SimpleOdomPublisher:
         self.vy = 0.0
         self.vth = 0.0
         
+        # IMU data for orientation
+        self.imu_orientation = None
+        rospy.Subscriber('/notspot_imu/base_link_orientation', Imu, self.imu_callback)
+        
         # Subscribe to cmd_vel to get velocity estimates
         rospy.Subscriber('/cmd_vel', Twist, self.cmd_vel_callback)
         
         self.current_time = rospy.Time.now()
         self.last_time = rospy.Time.now()
         
-        self.rate = rospy.Rate(20.0)  # 20Hz
+        # Decay factor for velocities (when no commands are received)
+        self.decay_factor = 0.95
+        self.last_cmd_time = rospy.Time.now()
+        self.cmd_timeout = rospy.Duration(0.5)  # 500ms
+        
+        rospy.loginfo("Simple Odometry Publisher started")
         
         # Main loop
+        rate = rospy.Rate(20.0)  # 20Hz
         while not rospy.is_shutdown():
             self.publish_odom()
-            self.rate.sleep()
+            rate.sleep()
+    
+    def imu_callback(self, msg):
+        """Store orientation from IMU"""
+        self.imu_orientation = msg.orientation
     
     def cmd_vel_callback(self, msg):
+        """Update velocity estimates from cmd_vel"""
         self.vx = msg.linear.x
         self.vy = msg.linear.y
         self.vth = msg.angular.z
+        self.last_cmd_time = rospy.Time.now()
     
     def publish_odom(self):
         self.current_time = rospy.Time.now()
+        
+        # Check if we need to decay velocities (no cmd_vel received recently)
+        if (self.current_time - self.last_cmd_time) > self.cmd_timeout:
+            self.vx *= self.decay_factor
+            self.vy *= self.decay_factor
+            self.vth *= self.decay_factor
         
         # Compute dt
         dt = (self.current_time - self.last_time).to_sec()
         
         # Compute distance traveled
-        delta_x = (self.vx * dt) 
+        delta_x = (self.vx * dt)
         delta_y = (self.vy * dt)
         delta_th = (self.vth * dt)
         
@@ -54,8 +77,16 @@ class SimpleOdomPublisher:
         self.y += delta_y
         self.th += delta_th
         
-        # Create quaternion from yaw
-        odom_quat = tf.transformations.quaternion_from_euler(0, 0, self.th)
+        # Create quaternion from yaw or use IMU orientation if available
+        if self.imu_orientation:
+            odom_quat = [
+                self.imu_orientation.x,
+                self.imu_orientation.y,
+                self.imu_orientation.z,
+                self.imu_orientation.w
+            ]
+        else:
+            odom_quat = tf.transformations.quaternion_from_euler(0, 0, self.th)
         
         # Publish transform over tf
         self.odom_broadcaster.sendTransform(
@@ -77,6 +108,14 @@ class SimpleOdomPublisher:
         
         # Set the velocity
         odom.twist.twist = Twist(Vector3(self.vx, self.vy, 0), Vector3(0, 0, self.vth))
+        
+        # Add some covariance (needed by some packages)
+        odom.pose.covariance[0] = 0.1
+        odom.pose.covariance[7] = 0.1
+        odom.pose.covariance[14] = 0.1
+        odom.pose.covariance[21] = 0.1
+        odom.pose.covariance[28] = 0.1
+        odom.pose.covariance[35] = 0.1
         
         # Publish the message
         self.odom_pub.publish(odom)

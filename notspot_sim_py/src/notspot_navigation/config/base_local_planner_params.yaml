@@ -1,12 +1,42 @@
 TrajectoryPlannerROS:
-  max_vel_x: 0.02  
-  min_vel_x: 0.01
-  max_vel_theta: 0.3 
-  min_in_place_vel_theta: 0.2
-  acc_lim_theta: 0.6
-  acc_lim_x: 0.2
-  acc_lim_y: 0.2
-  holonomic_robot: false
-  meter_scoring: true
+  # Robot velocity constraints
+  max_vel_x: 0.015  # Lower than robot's actual max for better control
+  min_vel_x: 0.005
+  max_vel_theta: 0.3
+  min_in_place_vel_theta: 0.1
+  
+  # Acceleration limits
+  acc_lim_theta: 0.3
+  acc_lim_x: 0.1
+  acc_lim_y: 0.1
+  
+  # Goal tolerance
   xy_goal_tolerance: 0.2
   yaw_goal_tolerance: 0.3
+  
+  # Forward simulation parameters
+  sim_time: 1.0
+  sim_granularity: 0.025
+  vx_samples: 6
+  vtheta_samples: 20
+  
+  # Not a holonomic robot, but it can move laterally to some extent
+  holonomic_robot: false
+  
+  # Visualization
+  publish_cost_grid_pc: true
+  
+  # Score metrics by meter
+  meter_scoring: true
+  
+  # Controller behavior
+  pdist_scale: 0.8
+  gdist_scale: 0.4
+  occdist_scale: 0.05
+  heading_lookahead: 0.3
+  heading_scoring: false
+  
+  # Oscillation prevention
+  oscillation_reset_dist: 0.05
+  escape_reset_dist: 0.1
+  escape_reset_theta: 0.1

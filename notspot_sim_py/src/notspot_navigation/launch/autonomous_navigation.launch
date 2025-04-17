@@ -6,15 +6,10 @@
   <include file="$(find notspot)/launch/run_robot_gazebo.launch" />
   
   <!-- TF Tree Setup -->
-  <!-- Connect world to map -->
-  <node pkg="tf" type="static_transform_publisher" name="world_to_map"
-        args="0 0 0 0 0 0 world map 100" />
-        
-  <!-- Connect map to odom (initially at same position) -->
-  <!-- This will be updated by SLAM/AMCL during runtime -->
-  <node pkg="tf" type="static_transform_publisher" name="map_to_odom_init"
-        args="0 0 0 0 0 0 map odom 100" />
-        
+  <!-- We don't use static transforms here because the robot will be moving -->
+  <!-- The odom->base_link transform is published by the robot controller or our odom node -->
+  <!-- The map->odom transform will be published by gmapping -->
+  
   <!-- Start gmapping for simultaneous mapping -->
   <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen">
     <param name="scan" value="/scan"/>
@@ -22,7 +17,7 @@
     <param name="odom_frame" value="odom"/>
     <param name="map_frame" value="map"/>
     <param name="map_update_interval" value="1.0"/>
-    <!-- Additional gmapping parameters for better performance -->
+    <!-- Tuned gmapping parameters for better performance -->
     <param name="linearUpdate" value="0.1"/>
     <param name="angularUpdate" value="0.1"/>
     <param name="particles" value="100"/>
@@ -53,5 +48,5 @@
   </node>
   
   <!-- Start RViz with a configuration for navigation -->
-  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find notspot_navigation)/rviz/navigation.rviz" required="false"/>
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find notspot_navigation)/rviz/navigation.rviz"/>
 </launch>
