@@ -1,211 +1,115 @@
 #!/usr/bin/env python3
-#Author: mike4192 https://github.com/mike4192/spotMicro
-#Modified by: lnotspotl
 
-import numpy as np
 import rospy
-from . GaitController import GaitController
-from . PIDController import PID_controller
-from . LQRController import LQR_controller
-from RoboticsUtilities.Transformations import rotxyz,rotz
+import time
+from geometry_msgs.msg import Twist
+from sensor_msgs.msg import Joy
 
-
-class TrotGaitController(GaitController):
-    def __init__(self, default_stance, stance_time, swing_time, time_step, use_imu):
-        self.use_imu = use_imu
-        self.use_button = True
-        self.use_lqr = False
-        self.autoRest = True
-        self.trotNeeded = True
-
-        contact_phases = np.array([[1, 1, 1, 0],  # 0: Leg swing
-                                   [1, 0, 1, 1],  # 1: Moving stance forward
-                                   [1, 0, 1, 1],  
-                                   [1, 1, 1, 0]])
-
-        z_error_constant = 0.02 * 4    # This constant determines how fast we move
-                                       # toward the goal in the z direction
+class CmdVelToJoints:
+    def __init__(self):
+        rospy.init_node('cmd_vel_to_joints')
         
-
-        z_leg_lift = 0.07
-
-        super().__init__(stance_time, swing_time, time_step, contact_phases, default_stance)
-
-        self.max_x_velocity = 0.024 #[m/s] 
-        self.max_y_velocity = 0.015 #[m/s]
-        self.max_yaw_rate = 0.6 #[rad/s]
-
-
-        self.swingController = TrotSwingController(self.stance_ticks, self.swing_ticks, self.time_step,
-                                                   self.phase_length, z_leg_lift, self.default_stance)
-
-        self.stanceController = TrotStanceController(self.phase_length, self.stance_ticks, self.swing_ticks,
-                                                     self.time_step, z_error_constant)
-
-
-        # TODO: tune kp, ki and kd
-        #                                     kp    ki    kd
-        self.pid_controller = PID_controller(0.15, 0.02, 0.002)
-        self.lqr_controller = LQR_controller()
-
-    def updateStateCommand(self, msg, state, command):
-        command.velocity[0] = msg.axes[3] * self.max_x_velocity # Straight
-        command.velocity[1] = msg.axes[0] * self.max_y_velocity # Lateral
-
-        command.yaw_rate = msg.axes[2] * self.max_yaw_rate # Rotate
-
-        state.body_local_position[2] = msg.axes[1] * 0.03 # Height
-
-        if self.use_button:
-            if msg.buttons[7]:
-                self.use_imu = not self.use_imu
-                if self.use_imu:
-                    self.use_lqr = False  # Turn off LQR if PID is enabled
-                self.use_button = False
-                control_type = "PID" if self.use_imu else "None"
-                rospy.loginfo(f"Trot Gait Controller - Control mode: {control_type}")
-
-            elif msg.buttons[9]:
-                self.use_lqr = not self.use_lqr
-                if self.use_lqr:
-                    self.use_imu = False  # Turn off PID if LQR is enabled
-                self.use_button = False
-                control_type = "LQR" if self.use_lqr else "None"
-                rospy.loginfo(f"Trot Gait Controller - Control mode: {control_type}")
-
-            elif msg.buttons[6]:
-                self.autoRest = not self.autoRest
-                if not self.autoRest:
-                    self.trotNeeded = True
-                self.use_button = False
-                rospy.loginfo(f"Trot Gait Controller - Use autorest: {self.autoRest}")
-            
-        if not self.use_button:
-            if not(msg.buttons[6] or msg.buttons[7] or msg.buttons[9]):
-                self.use_button = True
-
-    def step(self, state, command):
-        if self.autoRest:
-            if command.velocity[0] == 0 and command.velocity[1] == 0 and command.yaw_rate == 0:
-                if state.ticks % (2 * self.phase_length) == 0:
-                    self.trotNeeded = False
-            else:
-                self.trotNeeded = True
-
-        if self.trotNeeded:
-            contact_modes = self.contacts(state.ticks)
-
-            new_foot_locations = np.zeros((3,4))
-            for leg_index in range(4):
-                contact_mode = contact_modes[leg_index]
-                if contact_mode == 1:
-                    new_location = self.stanceController.next_foot_location(leg_index, state, command)
-                else:
-                    swing_proportion = float(self.subphase_ticks(state.ticks)) / float(self.swing_ticks)
-
-                    new_location = self.swingController.next_foot_location(swing_proportion,leg_index,state,command)
-
-                new_foot_locations[:, leg_index] = new_location
-
-            # tilt compensation
-            if self.use_imu:
-                compensation = self.pid_controller.run(state.imu_roll, state.imu_pitch)
-                roll_compensation = -compensation[0]
-                pitch_compensation = -compensation[1]
-
-                rot = rotxyz(roll_compensation,pitch_compensation,0)
-                new_foot_locations = np.matmul(rot,new_foot_locations)
-            
-            elif self.use_lqr:
-                compensation = self.lqr_controller.run(state.imu_roll, state.imu_pitch)
-                roll_compensation = -compensation[0]
-                pitch_compensation = -compensation[1]
-
-                rot = rotxyz(roll_compensation, pitch_compensation, 0)
-                new_foot_locations = np.matmul(rot, new_foot_locations)
-                                               
-            state.ticks += 1
-            return new_foot_locations
-        else:
-            temp = self.default_stance
-            temp[2] = [command.robot_height] * 4
-            return temp
-
-
-    def run(self, state, command):
-        state.foot_locations = self.step(state, command)
-        state.robot_height = command.robot_height
-
-        return state.foot_locations
-
-class TrotSwingController(object):
-    def __init__(self, stance_ticks, swing_ticks, time_step, phase_length, z_leg_lift, default_stance):
-        self.stance_ticks = stance_ticks
-        self.swing_ticks = swing_ticks
-        self.time_step = time_step
-        self.phase_length = phase_length
-        self.z_leg_lift = z_leg_lift
-        self.default_stance = default_stance
-
-    def raibert_touchdown_location(self, leg_index, command):
-        delta_pos_2d = command.velocity * self.phase_length * self.time_step
-        delta_pos = np.array([delta_pos_2d[0], delta_pos_2d[1], 0])
-
-        theta = self.stance_ticks * self.time_step * command.yaw_rate
-        rotation = rotz(theta)
-
-        return np.matmul(rotation, self.default_stance[:, leg_index]) + delta_pos
-
-    def swing_height(self, swing_phase):
-        if swing_phase < 0.5:
-            swing_height_ = swing_phase / 0.5 * self.z_leg_lift
-        else:
-            swing_height_ = self.z_leg_lift * (1 - (swing_phase - 0.5) / 0.5)
-        return swing_height_
-
-    def next_foot_location(self, swing_prop, leg_index, state, command):
-        assert swing_prop >= 0 and swing_prop <= 1
-        foot_location = state.foot_locations[:, leg_index]
-        swing_height_ = self.swing_height(swing_prop)
-        touchdown_location = self.raibert_touchdown_location(leg_index, command)
-
-        time_left = self.time_step* self.swing_ticks * (1.0 - swing_prop)
+        # Parameters matching trot gait speeds
+        self.max_x_velocity = 0.024  # [m/s]
+        self.max_y_velocity = 0.015  # [m/s]
+        self.max_yaw_rate = 0.6      # [rad/s]
         
-        velocity = (touchdown_location - foot_location) / float(time_left) *\
-             np.array([1, 1, 0])
-
-        delta_foot_location = velocity * self.time_step
-        z_vector = np.array([0, 0, swing_height_ + command.robot_height])
-        return foot_location * np.array([1, 1, 0]) + z_vector + delta_foot_location
-
-class TrotStanceController(object):
-    def __init__(self,phase_length, stance_ticks, swing_ticks, time_step, z_error_constant):
-        self.phase_length = phase_length
-        self.stance_ticks = stance_ticks
-        self.swing_ticks = swing_ticks
-        self.time_step = time_step
-        self.z_error_constant = z_error_constant
-
-    def position_delta(self, leg_index, state, command):
-        z = state.foot_locations[2, leg_index]
-
-        step_dist_x = command.velocity[0] *\
-                      (float(self.phase_length)/self.swing_ticks)
-
-        step_dist_y = command.velocity[1] *\
-                      (float(self.phase_length)/self.swing_ticks)
-
-        velocity = np.array([-(step_dist_x/4)/(float(self.time_step)*self.stance_ticks), 
-                             -(step_dist_y/4)/(float(self.time_step)*self.stance_ticks), 
-                             1.0 / self.z_error_constant * (state.robot_height - z)])
-
-        delta_pos = velocity * self.time_step
-        delta_ori = rotz(-command.yaw_rate * self.time_step)
-        return (delta_pos, delta_ori)
-
-    def next_foot_location(self, leg_index, state, command):
-        foot_location = state.foot_locations[:, leg_index]
-        (delta_pos, delta_ori) = self.position_delta(leg_index, state, command)
-        next_foot_location = np.matmul(delta_ori, foot_location) + delta_pos
-        return next_foot_location
+        # Scale factors to normalize cmd_vel values to joystick range [-1, 1]
+        self.linear_x_scale = 1.0 / self.max_x_velocity
+        self.linear_y_scale = 1.0 / self.max_y_velocity
+        self.angular_z_scale = 1.0 / self.max_yaw_rate
+        
+        # Subscribe to cmd_vel topic
+        rospy.Subscriber('/cmd_vel', Twist, self.cmd_vel_callback)
+        
+        # Publisher to send joystick-like commands to the robot controller
+        self.joy_pub = rospy.Publisher('/notspot_joy/joy_ramped', Joy, queue_size=1)
+        
+        # Initialize mode
+        self.mode_set = False
+        self.lqr_enabled = False
+        self.last_cmd_time = rospy.Time.now()
+        self.timeout = rospy.Duration(1.0)  # 1 second timeout
+        
+        rospy.loginfo("CmdVelToJoints node initialized with trot gait parameters")
+        
+        # Timer for keeping the robot in the right mode
+        rospy.Timer(rospy.Duration(1.0), self.mode_timer_callback)
+        
+        rospy.spin()
     
+    def mode_timer_callback(self, event):
+        """Ensure the robot stays in the correct mode"""
+        if not self.mode_set or not self.lqr_enabled:
+            self.send_mode_command()
+    
+    def send_mode_command(self):
+        """Set the robot to trot mode with LQR control initially"""
+        # First put robot in trot mode
+        joy_msg = Joy()
+        joy_msg.axes = [0.0] * 8
+        joy_msg.buttons = [0] * 12
+        
+        # Button 1 is trot mode
+        joy_msg.buttons[1] = 1
+        
+        self.joy_pub.publish(joy_msg)
+        rospy.loginfo("Setting robot to TROT mode")
+        time.sleep(0.5)  # Wait for mode to take effect
+        self.mode_set = True
+        
+        # Then enable LQR control
+        joy_msg = Joy()
+        joy_msg.axes = [0.0] * 8
+        joy_msg.buttons = [0] * 12
+        
+        # Button 9 is LQR control
+        joy_msg.buttons[9] = 1
+        
+        self.joy_pub.publish(joy_msg)
+        rospy.loginfo("Enabling LQR control for stability")
+        time.sleep(0.5)  # Wait for LQR to activate
+        self.lqr_enabled = True
+    
+    def cmd_vel_callback(self, msg):
+        """Convert Twist message to Joy message"""
+        # Check if we need to set the mode first
+        if not self.mode_set or not self.lqr_enabled:
+            self.send_mode_command()
+        
+        # Create Joy message
+        joy_msg = Joy()
+        joy_msg.axes = [0.0] * 8
+        joy_msg.buttons = [0] * 12
+        
+        # Map cmd_vel to joystick axes with proper scaling
+        # For the NotSpot trot controller:
+        # - Axis 0: Left/right rotation (angular.z)
+        # - Axis 2: Left/right movement (linear.y)
+        # - Axis 3: Forward/backward (linear.x)
+        
+        # Scale velocities to joystick range [-1, 1]
+        # Apply scaling factors and clamp to [-1, 1] range
+        angular_z = max(min(msg.angular.z * self.angular_z_scale, 1.0), -1.0)
+        linear_y = max(min(msg.linear.y * self.linear_y_scale, 1.0), -1.0)
+        linear_x = max(min(msg.linear.x * self.linear_x_scale, 1.0), -1.0)
+        
+        joy_msg.axes[0] = angular_z  # Rotation
+        joy_msg.axes[2] = linear_y   # Left/right movement
+        joy_msg.axes[3] = linear_x   # Forward/backward
+        
+        # Update last command time
+        self.last_cmd_time = rospy.Time.now()
+        
+        # Publish the joy message
+        self.joy_pub.publish(joy_msg)
+        
+        # Log periodic status (avoiding spamming the log)
+        if rospy.Time.now().to_sec() % 5 < 0.1:  # Log approximately every 5 seconds
+            rospy.loginfo(f"CMD_VEL to Joy: lin_x: {linear_x:.2f}, lin_y: {linear_y:.2f}, ang_z: {angular_z:.2f}")
+
+if __name__ == '__main__':
+    try:
+        CmdVelToJoints()
+    except rospy.ROSInterruptException:
+        pass
