@@ -12,7 +12,7 @@ class SimpleOdomPublisher:
     def __init__(self):
         rospy.init_node('simple_odom_publisher')
         
-        rospy.loginfo("INITIALIZING CORRECTED ODOMETRY PUBLISHER WITH DEBUGGING")
+        rospy.logwarn("INITIALIZING CORRECTED ODOMETRY PUBLISHER - EMERGENCY FIX VERSION")
         
         self.odom_pub = rospy.Publisher("odom", Odometry, queue_size=50)
         self.odom_broadcaster = tf.TransformBroadcaster()
@@ -47,14 +47,14 @@ class SimpleOdomPublisher:
         self.current_time = rospy.Time.now()
         self.last_time = rospy.Time.now()
         
-        # TUNABLE PARAMETERS - Adjust based on testing
+        # TUNABLE PARAMETERS - Adjusted for emergency fix
         # Decay factor for velocities (when no commands are received)
-        self.decay_factor = 0.85  # More aggressive decay (was 0.95)
+        self.decay_factor = 0.9  # Less aggressive decay (was 0.85)
         self.last_cmd_time = rospy.Time.now()
-        self.cmd_timeout = rospy.Duration(0.3)  # 300ms (was 0.5s)
+        self.cmd_timeout = rospy.Duration(0.5)  # 500ms
         
         # Movement thresholds for stopping drift
-        self.min_velocity_threshold = 0.002  # Set low velocities to zero to reduce drift
+        self.min_velocity_threshold = 0.0005  # Set low velocities to zero to reduce drift (was 0.002)
         
         # Enhanced covariance - tighter uncertainty (better position stability)
         self.position_covariance = 0.05  # Was 0.1
@@ -62,7 +62,7 @@ class SimpleOdomPublisher:
         
         # IMU orientation weight - how much to trust IMU vs. integration
         self.use_imu_yaw = True  # Use IMU for yaw orientation
-        self.imu_yaw_weight = 0.8  # Weight between integrated yaw and IMU yaw (1.0 = all IMU)
+        self.imu_yaw_weight = 0.5  # Weight between integrated yaw and IMU yaw (reduced from 0.8)
         
         # Flag for publishing transform
         self.publish_tf = rospy.get_param('~publish_tf', True)
@@ -78,21 +78,18 @@ class SimpleOdomPublisher:
         self.imu_updates = 0
         
         # Print configuration
-        rospy.loginfo("=== ODOMETRY CONFIGURATION ===")
-        rospy.loginfo(f"Velocity decay factor: {self.decay_factor}")
-        rospy.loginfo(f"Command timeout: {self.cmd_timeout.to_sec()} seconds")
-        rospy.loginfo(f"Minimum velocity threshold: {self.min_velocity_threshold}")
-        rospy.loginfo(f"Position covariance: {self.position_covariance}")
-        rospy.loginfo(f"Orientation covariance: {self.orientation_covariance}")
-        rospy.loginfo(f"Use IMU for yaw: {self.use_imu_yaw}")
-        rospy.loginfo(f"IMU yaw weight: {self.imu_yaw_weight}")
-        rospy.loginfo(f"Publishing TF: {self.publish_tf}")
-        rospy.loginfo("==============================")
+        rospy.logwarn("=== EMERGENCY ODOMETRY CONFIGURATION ===")
+        rospy.logwarn(f"Velocity decay factor: {self.decay_factor}")
+        rospy.logwarn(f"Command timeout: {self.cmd_timeout.to_sec()} seconds")
+        rospy.logwarn(f"Minimum velocity threshold: {self.min_velocity_threshold}")
+        rospy.logwarn(f"Position covariance: {self.position_covariance}")
+        rospy.logwarn(f"Orientation covariance: {self.orientation_covariance}")
+        rospy.logwarn(f"Use IMU for yaw: {self.use_imu_yaw}")
+        rospy.logwarn(f"IMU yaw weight: {self.imu_yaw_weight}")
+        rospy.logwarn(f"Publishing TF: {self.publish_tf}")
+        rospy.logwarn("==========================================")
         
-        rospy.loginfo("Corrected Odometry Publisher started")
-        
-        # Wait for a moment to make sure tf is ready
-        rospy.sleep(1.0)
+        rospy.logwarn("Emergency Fix Odometry Publisher started")
         
         # Debug timer - Print status every 5 seconds
         rospy.Timer(rospy.Duration(5.0), self.debug_callback)
@@ -249,6 +246,10 @@ class SimpleOdomPublisher:
         delta_y = (self.vx * math.sin(self.th) + self.vy * math.cos(self.th)) * dt
         delta_th = self.vth * dt
         
+        # Log velocity transformation for debugging
+        if abs(delta_x) > 0.001 or abs(delta_y) > 0.001 or abs(delta_th) > 0.001:
+            rospy.logwarn(f"Velocity transform: vx={self.vx:.4f}, vy={self.vy:.4f} -> dx={delta_x:.4f}, dy={delta_y:.4f}")
+        
         # Only update position if there's actual movement
         if abs(delta_x) > 0 or abs(delta_y) > 0 or abs(delta_th) > 0:
             # Update position estimate
@@ -299,7 +300,7 @@ class SimpleOdomPublisher:
         
         # Publish transform over tf
         if self.publish_tf:
-            # Create a TransformStamped message
+            # Create a TransformStamped message for better structure
             transform = TransformStamped()
             transform.header.stamp = self.current_time
             transform.header.frame_id = "odom"
@@ -312,7 +313,7 @@ class SimpleOdomPublisher:
             transform.transform.rotation.z = odom_quat[2]
             transform.transform.rotation.w = odom_quat[3]
             
-            # Send the transform
+            # Send the transform directly using sendTransformMessage
             self.odom_broadcaster.sendTransformMessage(transform)
             
             # Also broadcast base_link to base_footprint

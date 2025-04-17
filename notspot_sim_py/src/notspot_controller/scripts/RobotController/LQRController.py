@@ -12,23 +12,23 @@ class LQR_controller(object):
         self.inertia_roll = 0.00058474   # Roll moment of inertia from URDF
         self.inertia_pitch = 0.00029699  # Pitch moment of inertia from URDF
         
-        # Damping coefficients based on physical properties
-        self.damping_roll = 0.15    # Natural damping coefficient for roll
-        self.damping_pitch = 0.15   # Natural damping coefficient for pitch
+        # Damping coefficients - REDUCED for more responsive movement
+        self.damping_roll = 0.05     # Natural damping coefficient for roll (was 0.15)
+        self.damping_pitch = 0.05    # Natural damping coefficient for pitch (was 0.15)
         
-        # Control output smoothing
+        # Control output smoothing - REDUCED for faster response
         self.last_u = np.array([0.0, 0.0])
-        self.control_alpha = 0.3    # Smoothing factor for control outputs
+        self.control_alpha = 0.15    # Smoothing factor for control outputs (was 0.3)
         
-        # Cost matrices - tuned for the actual robot inertia
-        self.Q = np.diag([20.0, 1.0, 25.0, 1.0])  # [roll, roll_rate, pitch, pitch_rate]
-        self.R = np.diag([0.8, 0.8])              # Control effort penalty
+        # Cost matrices - INCREASED to give stronger corrections
+        self.Q = np.diag([30.0, 1.5, 35.0, 1.5])  # [roll, roll_rate, pitch, pitch_rate] (was [20, 1, 25, 1])
+        self.R = np.diag([0.6, 0.6])              # Control effort penalty (was [0.8, 0.8])
         
         # Internal state
         self.last_error = np.array([0.0, 0.0])
         self.estimated_vel = np.array([0.0, 0.0])
         self.last_time = rospy.Time.now()
-        self.derivative_alpha = 0.2  # Smoothing for derivatives
+        self.derivative_alpha = 0.15  # Smoothing for derivatives (was 0.2)
         
         # Initialize matrices with default dt
         self.update_matrices(self.dt)
@@ -37,7 +37,14 @@ class LQR_controller(object):
         self.K = self.compute_lqr_gain()
         
         self.max_output = 1.0    # Control output limits
-        self.gain_factor = 0.18  # Adjusted based on actual inertia values
+        self.gain_factor = 0.3   # INCREASED gain factor for stronger control (was 0.18)
+        
+        # Debug - Print initialization
+        rospy.logwarn("LQR Controller initialized with optimized parameters")
+        rospy.logwarn(f"Inertias - Roll: {self.inertia_roll}, Pitch: {self.inertia_pitch}")
+        rospy.logwarn(f"Damping - Roll: {self.damping_roll}, Pitch: {self.damping_pitch}")
+        rospy.logwarn(f"Gain factor: {self.gain_factor} (increased from 0.18)")
+        rospy.logwarn(f"Control smoothing: {self.control_alpha} (reduced from 0.3)")
     
     def update_matrices(self, dt):
         # A matrix for state dynamics [roll, roll_rate, pitch, pitch_rate]
@@ -85,8 +92,6 @@ class LQR_controller(object):
         if dt < 0.001 or dt > 0.1:
             dt = self.dt
         
-        rospy.loginfo(f"dt = {dt}")
-        
         # Update matrices with current dt
         self.update_matrices(dt)
         
@@ -117,22 +122,25 @@ class LQR_controller(object):
         # Compute control effort
         u_raw = -self.gain_factor * (self.K @ state)
         
-        # Apply smoothing to control outputs
+        # Apply smoothing to control outputs - less smoothing for faster response
         u = self.control_alpha * u_raw + (1 - self.control_alpha) * self.last_u
         self.last_u = u
 
-        # Debug print
-        rospy.loginfo(f"[LQR] Raw Control: {state}, Control: {u}")
+        # Debug print - more detailed
+        if abs(roll) > 0.01 or abs(pitch) > 0.01:
+            rospy.loginfo(f"[LQR] Roll={roll:.4f}, Pitch={pitch:.4f}, Error=[{current_error[0]:.4f}, {current_error[1]:.4f}]")
+            rospy.loginfo(f"[LQR] Raw Control={u_raw}, Final Control={u}")
 
         # Clip output
         u = np.clip(u, -self.max_output, self.max_output)
 
-        # Debug print
-        rospy.loginfo(f"[LQR] Clipped Control: {u}")
+        if abs(u[0]) > 0.1 or abs(u[1]) > 0.1:
+            rospy.logwarn(f"[LQR] Large Control: {u} - Active stabilization")
 
         return u
     
     def reset(self):
+        rospy.logwarn("[LQR] Controller reset")
         self.last_time = rospy.Time.now()
         self.last_error = np.array([0.0, 0.0])
         self.estimated_vel = np.array([0.0, 0.0])
@@ -140,3 +148,4 @@ class LQR_controller(object):
     
     def desired_RP_angles(self, des_roll, des_pitch):
         self.desired_roll_pitch = np.array([des_roll, des_pitch])
+        rospy.loginfo(f"[LQR] New target orientation: Roll={des_roll:.4f}, Pitch={des_pitch:.4f}")
