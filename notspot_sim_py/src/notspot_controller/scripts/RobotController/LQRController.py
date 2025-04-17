@@ -18,8 +18,7 @@ class LQR_controller(object):
         
         # Control output smoothing
         self.last_u = np.array([0.0, 0.0])
-        self.control_alpha = 0.3    # Smoothing factor for control outputs was 0.3 for controller
-        
+        self.control_alpha = 0.3    # Smoothing factor for control outputs 
         # Cost matrices - tuned for the actual robot inertia
         self.Q = np.diag([20.0, 1.0, 25.0, 1.0])  # [roll, roll_rate, pitch, pitch_rate]
         self.R = np.diag([0.8, 0.8])              # Control effort penalty
@@ -37,7 +36,7 @@ class LQR_controller(object):
         self.K = self.compute_lqr_gain()
         
         self.max_output = 1.0    # Control output limits
-        self.gain_factor = 0.18  # Adjusted based on actual inertia values was 0.18 for controller
+        self.gain_factor = 0.18  # Adjusted based on actual inertia values 
     
     def update_matrices(self, dt):
         # A matrix for state dynamics [roll, roll_rate, pitch, pitch_rate]
