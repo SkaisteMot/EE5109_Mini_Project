@@ -6,7 +6,9 @@
   <include file="$(find notspot)/launch/run_robot_gazebo.launch" />
   
   <!-- TF Tree Setup -->
-  <!-- We don't use static transforms here because the robot will be moving -->
+  <!-- Add world to map transform to satisfy lidar expectations -->
+  <node pkg="tf" type="static_transform_publisher" name="world_to_map"
+        args="0 0 0 0 0 0 world map 100" />
   <!-- The odom->base_link transform is published by the robot controller or our odom node -->
   <!-- The map->odom transform will be published by gmapping -->
   
