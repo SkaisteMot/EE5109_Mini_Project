@@ -2,6 +2,7 @@
 
 import rospy
 import tf
+import math
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point, Pose, Quaternion, Twist, Vector3
 from sensor_msgs.msg import Imu
@@ -12,7 +13,6 @@ class SimpleOdomPublisher:
         
         self.odom_pub = rospy.Publisher("odom", Odometry, queue_size=50)
         self.odom_broadcaster = tf.TransformBroadcaster()
-        self.tf_listener = tf.TransformListener()
         
         self.x = 0.0
         self.y = 0.0
@@ -22,7 +22,7 @@ class SimpleOdomPublisher:
         self.vy = 0.0
         self.vth = 0.0
         
-        # Robot height for correct positioning (matches default_height in RobotController.py)
+        # Robot height for correct positioning
         self.robot_height = 0.15
         
         # IMU data for orientation
@@ -35,6 +35,9 @@ class SimpleOdomPublisher:
         self.current_time = rospy.Time.now()
         self.last_time = rospy.Time.now()
         
+        # Threshold for considering velocities as zero
+        self.velocity_threshold = 0.0001
+        
         # Decay factor for velocities (when no commands are received)
         self.decay_factor = 0.95
         self.last_cmd_time = rospy.Time.now()
@@ -45,9 +48,6 @@ class SimpleOdomPublisher:
         
         rospy.loginfo("Simple Odometry Publisher started")
         
-        # Wait for a moment to make sure tf is ready
-        rospy.sleep(1.0)
-        
         # Main loop
         rate = rospy.Rate(20.0)  # 20Hz
         while not rospy.is_shutdown():
@@ -57,6 +57,20 @@ class SimpleOdomPublisher:
     def imu_callback(self, msg):
         """Store orientation from IMU"""
         self.imu_orientation = msg.orientation
+        
+        # Extract yaw from IMU quaternion
+        quaternion = (
+            msg.orientation.x,
+            msg.orientation.y,
+            msg.orientation.z,
+            msg.orientation.w
+        )
+        _, _, yaw = tf.transformations.euler_from_quaternion(quaternion)
+        
+        # Update our heading based on IMU
+        # Optional: use a complementary filter here if you don't want to fully 
+        # trust the IMU (e.g., self.th = 0.95 * self.th + 0.05 * yaw)
+        self.th = yaw
     
     def cmd_vel_callback(self, msg):
         """Update velocity estimates from cmd_vel"""
@@ -70,6 +84,15 @@ class SimpleOdomPublisher:
         
         # Check if we need to decay velocities (no cmd_vel received recently)
         if (self.current_time - self.last_cmd_time) > self.cmd_timeout:
+            # Apply thresholding to small velocities to combat drift
+            if abs(self.vx) < self.velocity_threshold:
+                self.vx = 0.0
+            if abs(self.vy) < self.velocity_threshold:
+                self.vy = 0.0
+            if abs(self.vth) < self.velocity_threshold:
+                self.vth = 0.0
+            
+            # Apply decay for remaining non-zero values
             self.vx *= self.decay_factor
             self.vy *= self.decay_factor
             self.vth *= self.decay_factor
@@ -77,44 +100,31 @@ class SimpleOdomPublisher:
         # Compute dt
         dt = (self.current_time - self.last_time).to_sec()
         
-        # Compute distance traveled
-        delta_x = (self.vx * dt)
-        delta_y = (self.vy * dt)
-        delta_th = (self.vth * dt)
+        # Use the same approach as the C++ code for computing position changes
+        # This accounts for the robot's current orientation when calculating position change
+        delta_x = (self.vx * math.cos(self.th) - self.vy * math.sin(self.th)) * dt
+        delta_y = (self.vx * math.sin(self.th) + self.vy * math.cos(self.th)) * dt
+        delta_th = self.vth * dt
         
         # Update position estimate
         self.x += delta_x
         self.y += delta_y
         self.th += delta_th
         
-        # Create quaternion from yaw or use IMU orientation if available
-        if self.imu_orientation:
-            odom_quat = [
-                self.imu_orientation.x,
-                self.imu_orientation.y,
-                self.imu_orientation.z,
-                self.imu_orientation.w
-            ]
-        else:
-            odom_quat = tf.transformations.quaternion_from_euler(0, 0, self.th)
+        # Normalize angle to stay within -π to π
+        self.th = math.atan2(math.sin(self.th), math.cos(self.th))
+        
+        # Create quaternion from yaw
+        odom_quat = tf.transformations.quaternion_from_euler(0, 0, self.th)
         
         # Publish transform over tf
         if self.publish_tf:
             self.odom_broadcaster.sendTransform(
-                (self.x, self.y, self.robot_height),  # Include robot height for proper visualization
+                (self.x, self.y, self.robot_height),
                 odom_quat,
                 self.current_time,
                 "base_link",
                 "odom"
-            )
-            
-            # Also broadcast base_link to base_footprint
-            self.odom_broadcaster.sendTransform(
-                (0, 0, 0),  # The footprint is directly below the base_link
-                tf.transformations.quaternion_from_euler(0, 0, 0),
-                self.current_time,
-                "base_footprint",
-                "base_link"
             )
         
         # Publish odometry message
@@ -129,14 +139,13 @@ class SimpleOdomPublisher:
         # Set the velocity
         odom.twist.twist = Twist(Vector3(self.vx, self.vy, 0), Vector3(0, 0, self.vth))
         
-        # Add covariance (needed by some packages)
-        # Lower values = higher certainty
-        odom.pose.covariance[0] = 0.1   # x
-        odom.pose.covariance[7] = 0.1   # y
-        odom.pose.covariance[14] = 0.1  # z
-        odom.pose.covariance[21] = 0.2  # roll
-        odom.pose.covariance[28] = 0.2  # pitch
-        odom.pose.covariance[35] = 0.2  # yaw
+        # Add covariance (lower values = higher certainty)
+        odom.pose.covariance[0] = 0.0   # x
+        odom.pose.covariance[7] = 0.0   # y
+        odom.pose.covariance[14] = 0.0  # z
+        odom.pose.covariance[21] = 0.0  # roll
+        odom.pose.covariance[28] = 0.0  # pitch
+        odom.pose.covariance[35] = 0.0  # yaw
         
         odom.twist.covariance = odom.pose.covariance
         
@@ -144,6 +153,11 @@ class SimpleOdomPublisher:
         self.odom_pub.publish(odom)
         
         self.last_time = self.current_time
+        
+        # Debug output - comment out when not needed
+        if (self.current_time.to_sec() % 5) < 0.1:  # print every ~5 seconds
+            rospy.loginfo(f"Odom: x={self.x:.3f}, y={self.y:.3f}, θ={self.th:.3f}, " +
+                         f"vx={self.vx:.3f}, vy={self.vy:.3f}, vθ={self.vth:.3f}")
 
 if __name__ == '__main__':
     try:
