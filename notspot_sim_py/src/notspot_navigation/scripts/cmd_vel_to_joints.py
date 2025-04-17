@@ -9,6 +9,9 @@ class CmdVelToJoints:
     def __init__(self):
         rospy.init_node('cmd_vel_to_joints')
         
+        # Set log level to INFO to see more output
+        rospy.loginfo("INITIALIZING CMD_VEL TO JOINTS CONVERTER WITH ENHANCED DEBUGGING")
+        
         # Get parameters
         self.auto_mode = rospy.get_param('~auto_mode', 'trot')  # Default to trot
         
@@ -22,10 +25,11 @@ class CmdVelToJoints:
         self.linear_y_scale = 1.0 / self.max_y_velocity
         self.angular_z_scale = 1.0 / self.max_yaw_rate
         
-        # Boost factors for simulation environment
-        self.forward_boost = 2.5  # Amplify forward movement signals
+        # TUNABLE PARAMETERS - Adjust these based on testing
+        # Boost factors for simulation environment - INCREASED for better movement
+        self.forward_boost = 3.5     # Amplify forward movement signals (was 2.5)
         self.rotation_reduction = 0.7  # Reduce rotation during forward movement
-        self.movement_threshold = 0.04  # Minimum speed to apply boost
+        self.movement_threshold = 0.02  # Minimum speed to apply boost (LOWERED from 0.04)
         
         # Subscribe to cmd_vel topic
         rospy.Subscriber('/cmd_vel', Twist, self.cmd_vel_callback)
@@ -45,10 +49,17 @@ class CmdVelToJoints:
         self.joy_sub = rospy.Subscriber('/notspot_joy/joy_ramped', Joy, self.joy_callback)
         self.last_joy_msg = None
         
+        # Debug counters
+        self.cmd_count = 0
+        self.zero_cmd_count = 0
+        self.sub_threshold_count = 0
+        self.boosted_cmd_count = 0
+        
         rospy.loginfo(f"CmdVelToJoints node initialized with {self.auto_mode} gait parameters")
         rospy.loginfo(f"* MAXIMUM VALUES - X: {self.max_x_velocity} m/s, Y: {self.max_y_velocity} m/s, YAW: {self.max_yaw_rate} rad/s")
         rospy.loginfo(f"* SCALE FACTORS - X: {self.linear_x_scale}, Y: {self.linear_y_scale}, YAW: {self.angular_z_scale}")
         rospy.loginfo(f"* BOOST FACTORS - Forward: {self.forward_boost}x, Rotation reduction: {self.rotation_reduction}x")
+        rospy.loginfo(f"* MOVEMENT THRESHOLD: {self.movement_threshold} (only boost when above this)")
         
         # Timer for keeping the robot in the right mode
         rospy.Timer(rospy.Duration(1.0), self.mode_timer_callback)
@@ -59,9 +70,23 @@ class CmdVelToJoints:
         # Debugging timer to print current control state
         rospy.Timer(rospy.Duration(2.0), self.debug_timer_callback)
         
+        # Stats timer to show command statistics
+        rospy.Timer(rospy.Duration(10.0), self.stats_timer_callback)
+        
     def joy_callback(self, msg):
         """Store joy message for debugging"""
         self.last_joy_msg = msg
+        
+    def stats_timer_callback(self, event):
+        """Show command statistics periodically"""
+        total = max(1, self.cmd_count)  # Avoid division by zero
+        
+        rospy.loginfo("=== CMD_VEL STATISTICS ===")
+        rospy.loginfo(f"Total commands: {self.cmd_count}")
+        rospy.loginfo(f"Zero commands: {self.zero_cmd_count} ({(self.zero_cmd_count/total)*100:.1f}%)")
+        rospy.loginfo(f"Sub-threshold: {self.sub_threshold_count} ({(self.sub_threshold_count/total)*100:.1f}%)")
+        rospy.loginfo(f"Boosted commands: {self.boosted_cmd_count} ({(self.boosted_cmd_count/total)*100:.1f}%)")
+        rospy.loginfo("========================")
         
     def debug_timer_callback(self, event):
         """Regularly print debug info about control state"""
@@ -99,7 +124,7 @@ class CmdVelToJoints:
             joy_msg.axes = [0.0] * 8
             joy_msg.buttons = [0] * 12
             self.joy_pub.publish(joy_msg)
-            rospy.logdebug("No cmd_vel received recently - stopping robot")
+            rospy.logwarn(" No cmd_vel received recently - stopping robot")
     
     def mode_timer_callback(self, event):
         """Ensure the robot stays in the correct mode"""
@@ -176,6 +201,16 @@ class CmdVelToJoints:
     
     def cmd_vel_callback(self, msg):
         """Convert Twist message to Joy message"""
+        self.cmd_count += 1
+        
+        # Check if all velocities are near zero
+        is_zero_cmd = (abs(msg.linear.x) < 0.001 and 
+                       abs(msg.linear.y) < 0.001 and 
+                       abs(msg.angular.z) < 0.001)
+        
+        if is_zero_cmd:
+            self.zero_cmd_count += 1
+        
         # Check if we need to set the mode first
         if not self.mode_set:
             self.send_mode_command()
@@ -186,8 +221,9 @@ class CmdVelToJoints:
         joy_msg.axes = [0.0] * 8
         joy_msg.buttons = [0] * 12
         
-        # Log input values
-        rospy.logdebug(f"CMD_VEL Input: linear_x={msg.linear.x:.4f}, linear_y={msg.linear.y:.4f}, angular_z={msg.angular.z:.4f}")
+        # Log input values (all the time for zero commands, less frequently for others)
+        if is_zero_cmd or self.cmd_count % 5 == 0:
+            rospy.loginfo(f"📥 CMD_VEL Input: linear_x={msg.linear.x:.4f}, linear_y={msg.linear.y:.4f}, angular_z={msg.angular.z:.4f}")
         
         # Scale velocities to joystick range [-1, 1]
         # Apply scaling factors and clamp to [-1, 1] range
@@ -196,7 +232,8 @@ class CmdVelToJoints:
         linear_x = max(min(msg.linear.x * self.linear_x_scale, 1.0), -1.0)
         
         # Log scaled values
-        rospy.logdebug(f"Scaled values: linear_x={linear_x:.4f}, linear_y={linear_y:.4f}, angular_z={angular_z:.4f}")
+        if not is_zero_cmd:
+            rospy.loginfo(f"⚖️ Scaled values: linear_x={linear_x:.4f}, linear_y={linear_y:.4f}, angular_z={angular_z:.4f}")
         
         # BOOST FORWARD MOVEMENT - This is the key change
         if abs(linear_x) > self.movement_threshold:
@@ -214,11 +251,16 @@ class CmdVelToJoints:
             # Reduce rotation during forward movement for stability
             joy_msg.axes[2] = angular_z * self.rotation_reduction
             
-            rospy.loginfo(f"Boosting forward movement: {linear_x:.3f} → {boosted_linear_x:.3f}")
+            rospy.loginfo(f"🚀 Boosting forward movement: {linear_x:.3f} → {boosted_linear_x:.3f}")
+            self.boosted_cmd_count += 1
         else:
             # For small or zero movements, use standard mapping
             joy_msg.axes[3] = linear_x    # Forward/backward on axis 3
             joy_msg.axes[2] = angular_z   # Rotation on axis 2
+            
+            if not is_zero_cmd:
+                rospy.loginfo(f"🐢 Movement below boost threshold ({self.movement_threshold})")
+                self.sub_threshold_count += 1
         
         # Always map lateral movement normally
         joy_msg.axes[0] = linear_y    # Left/right on axis 0
@@ -232,8 +274,9 @@ class CmdVelToJoints:
         # Publish the joy message
         self.joy_pub.publish(joy_msg)
         
-        # Log detailed values for debugging
-        rospy.loginfo(f"CMD_VEL to JOY: x={msg.linear.x:.3f}→axis3={joy_msg.axes[3]:.3f}, y={msg.linear.y:.3f}→axis0={joy_msg.axes[0]:.3f}, θ={msg.angular.z:.3f}→axis2={joy_msg.axes[2]:.3f}")
+        # Log detailed values for debugging (only for non-zero commands)
+        if not is_zero_cmd:
+            rospy.loginfo(f"📤 JOY OUTPUT: x={msg.linear.x:.3f}→axis3={joy_msg.axes[3]:.3f}, y={msg.linear.y:.3f}→axis0={joy_msg.axes[0]:.3f}, θ={msg.angular.z:.3f}→axis2={joy_msg.axes[2]:.3f}")
 
 if __name__ == '__main__':
     try:
