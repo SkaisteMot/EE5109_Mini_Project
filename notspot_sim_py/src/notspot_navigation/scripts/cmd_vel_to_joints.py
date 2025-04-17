@@ -9,11 +9,18 @@ class CmdVelToJoints:
     def __init__(self):
         rospy.init_node('cmd_vel_to_joints')
         
-        # Set log level to INFO to see more output
-        rospy.logwarn("INITIALIZING SIMPLIFIED CMD_VEL TO JOINTS CONVERTER - EMERGENCY MOVEMENT MODE")
-        
         # Get parameters
         self.auto_mode = rospy.get_param('~auto_mode', 'trot')  # Default to trot
+        
+        # Parameters matching trot gait controller speeds from controller code
+        self.max_x_velocity = 0.024  # [m/s] from TrotGaitController.py
+        self.max_y_velocity = 0.015  # [m/s] from TrotGaitController.py
+        self.max_yaw_rate = 0.6      # [rad/s] from TrotGaitController.py
+        
+        # Scale factors to normalize cmd_vel values to joystick range [-1, 1]
+        self.linear_x_scale = 1.0 / self.max_x_velocity
+        self.linear_y_scale = 1.0 / self.max_y_velocity
+        self.angular_z_scale = 1.0 / self.max_yaw_rate
         
         # Subscribe to cmd_vel topic
         rospy.Subscriber('/cmd_vel', Twist, self.cmd_vel_callback)
@@ -33,20 +40,9 @@ class CmdVelToJoints:
         self.joy_sub = rospy.Subscriber('/notspot_joy/joy_ramped', Joy, self.joy_callback)
         self.last_joy_msg = None
         
-        # Debug counters
-        self.cmd_count = 0
-        self.zero_cmd_count = 0
-        
-        # Control values - MUCH more aggressive
-        self.linear_boost = 10.0   # 10x multiplication for linear movement
-        self.angular_boost = 2.0   # 2x multiplication for angular movement
-        
-        rospy.logwarn("=== EMERGENCY MOVEMENT CONFIGURATION ===")
-        rospy.logwarn(f"Linear boost: {self.linear_boost}x")
-        rospy.logwarn(f"Angular boost: {self.angular_boost}x")
-        rospy.logwarn(f"Mode: {self.auto_mode}")
-        rospy.logwarn("This configuration bypasses thresholds for testing")
-        rospy.logwarn("===========================================")
+        rospy.loginfo(f"CmdVelToJoints node initialized with {self.auto_mode} gait parameters")
+        rospy.loginfo(f"* MAXIMUM VALUES - X: {self.max_x_velocity} m/s, Y: {self.max_y_velocity} m/s, YAW: {self.max_yaw_rate} rad/s")
+        rospy.loginfo(f"* SCALE FACTORS - X: {self.linear_x_scale}, Y: {self.linear_y_scale}, YAW: {self.angular_z_scale}")
         
         # Timer for keeping the robot in the right mode
         rospy.Timer(rospy.Duration(1.0), self.mode_timer_callback)
@@ -97,7 +93,7 @@ class CmdVelToJoints:
             joy_msg.axes = [0.0] * 8
             joy_msg.buttons = [0] * 12
             self.joy_pub.publish(joy_msg)
-            rospy.logwarn("⚠️ No cmd_vel received recently - stopping robot")
+            rospy.logdebug("No cmd_vel received recently - stopping robot")
     
     def mode_timer_callback(self, event):
         """Ensure the robot stays in the correct mode"""
@@ -110,14 +106,14 @@ class CmdVelToJoints:
     
     def send_mode_command(self):
         """Set the robot to the appropriate mode (trot, crawl, etc.) with proper timing"""
-        rospy.logwarn("=== SETTING ROBOT MODE ===")
+        rospy.loginfo("=== SETTING ROBOT MODE ===")
         # First, ensure clean state by sending rest mode
         joy_msg = Joy()
         joy_msg.axes = [0.0] * 8
         joy_msg.buttons = [0] * 12
         joy_msg.buttons[0] = 1  # Rest mode
         self.joy_pub.publish(joy_msg)
-        rospy.logwarn("Sent REST mode command")
+        rospy.loginfo("Sent REST mode command")
         rospy.sleep(0.7)  # Wait for mode to take effect
         
         # Clear buttons
@@ -129,15 +125,15 @@ class CmdVelToJoints:
         if self.auto_mode == 'trot':
             # Button 1 is trot mode
             joy_msg.buttons[1] = 1
-            rospy.logwarn("Setting robot to TROT mode")
+            rospy.loginfo("Setting robot to TROT mode")
         elif self.auto_mode == 'crawl':
             # Button 2 is crawl mode
             joy_msg.buttons[2] = 1
-            rospy.logwarn("Setting robot to CRAWL mode")
+            rospy.loginfo("Setting robot to CRAWL mode")
         elif self.auto_mode == 'stand':
             # Button 3 is stand mode
             joy_msg.buttons[3] = 1
-            rospy.logwarn("Setting robot to STAND mode")
+            rospy.loginfo("Setting robot to STAND mode")
         
         # Publish the message
         self.joy_pub.publish(joy_msg)
@@ -149,7 +145,7 @@ class CmdVelToJoints:
         rospy.sleep(0.3)
         
         self.mode_set = True
-        rospy.logwarn("Mode setup complete")
+        rospy.loginfo("Mode setup complete")
     
     def enable_stability_control(self):
         """Enable LQR control for better stability"""
@@ -161,7 +157,7 @@ class CmdVelToJoints:
         joy_msg.buttons[9] = 1
         
         self.joy_pub.publish(joy_msg)
-        rospy.logwarn("Enabling LQR stability control")
+        rospy.loginfo("Enabling LQR stability control")
         rospy.sleep(0.5)  # Longer pause to ensure it takes effect
         
         # Clear button press
@@ -170,54 +166,67 @@ class CmdVelToJoints:
         rospy.sleep(0.2)
         
         self.stabilize_enabled = True
-        rospy.logwarn("LQR control enabled")
+        rospy.loginfo("LQR control enabled")
     
     def cmd_vel_callback(self, msg):
-        """SIMPLIFIED VERSION: Convert Twist message to Joy message with direct mapping"""
-        self.cmd_count += 1
-        
+        """Convert Twist message to Joy message"""
         # Check if we need to set the mode first
         if not self.mode_set:
             self.send_mode_command()
             self.enable_stability_control()
-            
-        # Log ALL commands for debugging
-        rospy.logwarn(f"RAW CMD_VEL #{self.cmd_count}: x={msg.linear.x:.6f}, y={msg.linear.y:.6f}, θ={msg.angular.z:.6f}")
         
-        # Check if all velocities are near zero
-        is_zero_cmd = (abs(msg.linear.x) < 0.0001 and 
-                       abs(msg.linear.y) < 0.0001 and 
-                       abs(msg.angular.z) < 0.0001)
-        
-        if is_zero_cmd:
-            self.zero_cmd_count += 1
-            if self.cmd_count % 10 == 0:  # Less frequent logging for zero commands
-                rospy.loginfo(f"Zero command #{self.zero_cmd_count}/{self.cmd_count}")
-        
-        # Create Joy message with simple direct mapping
+        # Create Joy message
         joy_msg = Joy()
         joy_msg.axes = [0.0] * 8
         joy_msg.buttons = [0] * 12
         
-        # DIRECT MAPPING - Much more aggressive scaling
-        # Forward movement: axis 3
-        joy_msg.axes[3] = min(1.0, max(-1.0, msg.linear.x * self.linear_boost))
+        # Log input values
+        rospy.logdebug(f"CMD_VEL Input: linear_x={msg.linear.x:.4f}, linear_y={msg.linear.y:.4f}, angular_z={msg.angular.z:.4f}")
         
-        # Lateral movement: axis 0 
-        joy_msg.axes[0] = min(1.0, max(-1.0, msg.linear.y * self.linear_boost))
+        # Scale velocities to joystick range [-1, 1]
+        # Apply scaling factors and clamp to [-1, 1] range
+        angular_z = max(min(msg.angular.z * self.angular_z_scale, 1.0), -1.0)
+        linear_y = max(min(msg.linear.y * self.linear_y_scale, 1.0), -1.0)
+        linear_x = max(min(msg.linear.x * self.linear_x_scale, 1.0), -1.0)
         
-        # Rotation: axis 2
-        joy_msg.axes[2] = min(1.0, max(-1.0, msg.angular.z * self.angular_boost))
+        # Log scaled values
+        rospy.logdebug(f"Scaled values: linear_x={linear_x:.4f}, linear_y={linear_y:.4f}, angular_z={angular_z:.4f}")
         
-        # Always log what we're sending to the joystick
-        if not is_zero_cmd:
-            rospy.logwarn(f"JOY OUTPUT: forward={joy_msg.axes[3]:.3f}, lateral={joy_msg.axes[0]:.3f}, rotation={joy_msg.axes[2]:.3f}")
+        # INVESTIGATE ALTERNATIVE MAPPINGS
+        # Try different axis mappings - TrotGaitController.py:
+        # self.target_joy.axes = msg.axes
+        # command.velocity[0] = msg.axes[3] * self.max_x_velocity # Straight - AXIS 3
+        # command.velocity[1] = msg.axes[0] * self.max_y_velocity # Lateral - AXIS 0
+        # command.yaw_rate = msg.axes[2] * self.max_yaw_rate      # Rotation - AXIS 2
+        
+        # STANDARD MAPPING (Should match TrotGaitController.updateStateCommand)
+        joy_msg.axes[3] = linear_x    # Forward/backward on axis 3
+        joy_msg.axes[0] = linear_y    # Left/right on axis 0  
+        joy_msg.axes[2] = angular_z   # Rotation on axis 2
+        
+        # Boost linear movement signal to overcome friction
+        if abs(linear_x) > 0.1:  # If there's a significant forward command
+            # Boost it slightly to overcome inertia
+            joy_msg.axes[3] = linear_x * 1.5
+            if joy_msg.axes[3] > 1.0:
+                joy_msg.axes[3] = 1.0
+            elif joy_msg.axes[3] < -1.0:
+                joy_msg.axes[3] = -1.0
+                
+            # Reduce yaw to prioritize forward motion
+            joy_msg.axes[2] = angular_z * 0.7
+        
+        # Additional axes value to ensure robot is in proper height state
+        joy_msg.axes[1] = 0.0         # Height control
         
         # Update last command time
         self.last_cmd_time = rospy.Time.now()
         
         # Publish the joy message
         self.joy_pub.publish(joy_msg)
+        
+        # Log detailed values every time for debugging
+        rospy.loginfo(f"CMD_VEL to JOY: x={linear_x:.3f}→axis3={joy_msg.axes[3]:.3f}, y={linear_y:.3f}→axis0={joy_msg.axes[0]:.3f}, θ={angular_z:.3f}→axis2={joy_msg.axes[2]:.3f}")
 
 if __name__ == '__main__':
     try:
