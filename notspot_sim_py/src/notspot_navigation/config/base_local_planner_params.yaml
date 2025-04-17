@@ -15,7 +15,7 @@ TrajectoryPlannerROS:
   yaw_goal_tolerance: 0.3
   
   # Forward simulation parameters
-  sim_time: 1.0
+  sim_time: 1.5
   sim_granularity: 0.025
   vx_samples: 6
   vtheta_samples: 20
@@ -40,3 +40,7 @@ TrajectoryPlannerROS:
   oscillation_reset_dist: 0.05
   escape_reset_dist: 0.1
   escape_reset_theta: 0.1
+  
+  # Additional parameters for more stable movement
+  dwa: false
+  simple_attractor: false

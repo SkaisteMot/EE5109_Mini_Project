@@ -31,6 +31,7 @@ class CmdVelToJoints:
         # Initialize mode
         self.mode_set = False
         self.stabilize_enabled = False
+        self.controller_ready = False
         
         # Keep track of last command time for timeout safety
         self.last_cmd_time = rospy.Time.now()
@@ -38,11 +39,38 @@ class CmdVelToJoints:
         
         rospy.loginfo(f"CmdVelToJoints node initialized with {self.auto_mode} gait parameters")
         
+        # Give ROS time to set up the publishers and subscribers
+        rospy.sleep(1.0)
+        
+        # Initial setup of robot mode
+        self.initial_setup()
+        
         # Timer for keeping the robot in the right mode
-        rospy.Timer(rospy.Duration(1.0), self.mode_timer_callback)
+        rospy.Timer(rospy.Duration(3.0), self.mode_timer_callback)
         
         # Safety timer to stop robot if no commands are received
         rospy.Timer(rospy.Duration(0.5), self.safety_timer_callback)
+        
+    def initial_setup(self):
+        """Initial setup to ensure robot is ready for commands"""
+        # First, put robot in rest mode
+        joy_msg = Joy()
+        joy_msg.axes = [0.0] * 8
+        joy_msg.buttons = [0] * 12
+        
+        joy_msg.buttons[0] = 1  # Rest mode
+        self.joy_pub.publish(joy_msg)
+        rospy.loginfo("Initializing robot in REST mode...")
+        rospy.sleep(1.0)
+        
+        # Clear buttons
+        joy_msg.buttons = [0] * 12
+        self.joy_pub.publish(joy_msg)
+        rospy.sleep(0.5)
+        
+        # Now set the desired mode and enable stability control
+        self.send_mode_command()
+        self.controller_ready = True
         
     def safety_timer_callback(self, event):
         """Stop the robot if no commands have been received recently"""
@@ -55,12 +83,10 @@ class CmdVelToJoints:
     
     def mode_timer_callback(self, event):
         """Ensure the robot stays in the correct mode"""
-        if not self.mode_set:
+        if not self.mode_set or not self.stabilize_enabled:
             self.send_mode_command()
-            
-        # Re-enable stability control periodically
-        if not self.stabilize_enabled:
-            self.enable_stability_control()
+            if not self.stabilize_enabled:
+                self.enable_stability_control()
     
     def send_mode_command(self):
         """Set the robot to the appropriate mode (trot, crawl, etc.)"""
@@ -85,7 +111,13 @@ class CmdVelToJoints:
         
         # Publish the message
         self.joy_pub.publish(joy_msg)
-        time.sleep(0.5)  # Wait for mode to take effect
+        rospy.sleep(0.5)  # Wait for mode to take effect
+        
+        # Clear buttons to avoid maintaining any button press
+        joy_msg.buttons = [0] * 12
+        self.joy_pub.publish(joy_msg)
+        rospy.sleep(0.2)
+        
         self.mode_set = True
     
     def enable_stability_control(self):
@@ -99,14 +131,27 @@ class CmdVelToJoints:
         
         self.joy_pub.publish(joy_msg)
         rospy.loginfo("Enabling LQR stability control")
-        time.sleep(0.2)  # Short pause
+        rospy.sleep(0.3)  # Short pause
+        
+        # Clear button press
+        joy_msg.buttons = [0] * 12
+        self.joy_pub.publish(joy_msg)
+        rospy.sleep(0.2)
+        
         self.stabilize_enabled = True
     
     def cmd_vel_callback(self, msg):
         """Convert Twist message to Joy message"""
+        # Check if controller is ready
+        if not self.controller_ready:
+            rospy.logwarn("Controller not ready yet, ignoring command")
+            return
+            
         # Check if we need to set the mode first
         if not self.mode_set:
             self.send_mode_command()
+        
+        if not self.stabilize_enabled:
             self.enable_stability_control()
         
         # Create Joy message
@@ -114,22 +159,22 @@ class CmdVelToJoints:
         joy_msg.axes = [0.0] * 8
         joy_msg.buttons = [0] * 12
         
-        # Map cmd_vel to joystick axes with proper scaling based on TrotGaitController.py
-        # For the NotSpot trot controller:
-        # - Axis 2: Left/right rotation (angular.z - yaw_rate)
-        # - Axis 0: Left/right movement (linear.y)
-        # - Axis 3: Forward/backward (linear.x)
-        
         # Scale velocities to joystick range [-1, 1]
-        # Apply scaling factors and clamp to [-1, 1] range
         angular_z = max(min(msg.angular.z * self.angular_z_scale, 1.0), -1.0)
         linear_y = max(min(msg.linear.y * self.linear_y_scale, 1.0), -1.0)
         linear_x = max(min(msg.linear.x * self.linear_x_scale, 1.0), -1.0)
         
-        # Apply the values to the correct axes based on TrotGaitController.updateStateCommand
+        # Verify mapping is correct for this robot controller
+        # Based on TrotGaitController.updateStateCommand
+        # Note: these values are based on your TrotGaitController analysis:
+        # joy_msg.axes[2] = angular_z   # Rotation (command.yaw_rate)
+        # joy_msg.axes[0] = linear_y    # Left/right (command.velocity[1])
+        # joy_msg.axes[3] = linear_x    # Forward/backward (command.velocity[0])
+        
+        # Apply the values to the correct axes based on TrotGaitController code
         joy_msg.axes[2] = angular_z   # Rotation (yaw_rate)
-        joy_msg.axes[0] = linear_y    # Left/right (lateral)
-        joy_msg.axes[3] = linear_x    # Forward/backward (straight)
+        joy_msg.axes[0] = linear_y    # Left/right lateral movement
+        joy_msg.axes[3] = linear_x    # Forward/backward movement
         
         # Update last command time
         self.last_cmd_time = rospy.Time.now()

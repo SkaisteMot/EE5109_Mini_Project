@@ -12,6 +12,7 @@ class SimpleOdomPublisher:
         
         self.odom_pub = rospy.Publisher("odom", Odometry, queue_size=50)
         self.odom_broadcaster = tf.TransformBroadcaster()
+        self.tf_listener = tf.TransformListener()
         
         self.x = 0.0
         self.y = 0.0
@@ -39,13 +40,36 @@ class SimpleOdomPublisher:
         self.last_cmd_time = rospy.Time.now()
         self.cmd_timeout = rospy.Duration(0.5)  # 500ms
         
+        # Flag for publishing transform
+        self.publish_tf = rospy.get_param('~publish_tf', True)
+        
         rospy.loginfo("Simple Odometry Publisher started")
+        
+        # Wait for a moment to make sure tf is ready
+        rospy.sleep(1.0)
         
         # Main loop
         rate = rospy.Rate(20.0)  # 20Hz
         while not rospy.is_shutdown():
             self.publish_odom()
+            self.check_tf_tree()
             rate.sleep()
+    
+    def check_tf_tree(self):
+        """Check and publish additional transforms if needed"""
+        try:
+            # Check if map->odom transform exists
+            self.tf_listener.waitForTransform("map", "odom", rospy.Time(0), rospy.Duration(0.1))
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            # If not, publish a simple identity transform as fallback
+            if self.publish_tf:
+                self.odom_broadcaster.sendTransform(
+                    (0, 0, 0),
+                    tf.transformations.quaternion_from_euler(0, 0, 0),
+                    rospy.Time.now(),
+                    "odom",
+                    "map"
+                )
     
     def imu_callback(self, msg):
         """Store orientation from IMU"""
@@ -91,14 +115,24 @@ class SimpleOdomPublisher:
         else:
             odom_quat = tf.transformations.quaternion_from_euler(0, 0, self.th)
         
-        # Publish transform over tf - now including the robot_height for z value
-        self.odom_broadcaster.sendTransform(
-            (self.x, self.y, self.robot_height),  # Added robot_height to z-position
-            odom_quat,
-            self.current_time,
-            "base_link",
-            "odom"
-        )
+        # Publish transform over tf
+        if self.publish_tf:
+            self.odom_broadcaster.sendTransform(
+                (self.x, self.y, self.robot_height),  # Include robot height for proper visualization
+                odom_quat,
+                self.current_time,
+                "base_link",
+                "odom"
+            )
+            
+            # Also broadcast base_link to base_footprint
+            self.odom_broadcaster.sendTransform(
+                (0, 0, 0),  # The footprint is directly below the base_link
+                tf.transformations.quaternion_from_euler(0, 0, 0),
+                self.current_time,
+                "base_footprint",
+                "base_link"
+            )
         
         # Publish odometry message
         odom = Odometry()
@@ -106,19 +140,22 @@ class SimpleOdomPublisher:
         odom.header.frame_id = "odom"
         odom.child_frame_id = "base_link"
         
-        # Set the position - also include robot_height in the odometry message
+        # Set the position
         odom.pose.pose = Pose(Point(self.x, self.y, self.robot_height), Quaternion(*odom_quat))
         
         # Set the velocity
         odom.twist.twist = Twist(Vector3(self.vx, self.vy, 0), Vector3(0, 0, self.vth))
         
-        # Add some covariance (needed by some packages)
-        odom.pose.covariance[0] = 0.1
-        odom.pose.covariance[7] = 0.1
-        odom.pose.covariance[14] = 0.1
-        odom.pose.covariance[21] = 0.1
-        odom.pose.covariance[28] = 0.1
-        odom.pose.covariance[35] = 0.1
+        # Add covariance (needed by some packages)
+        # Lower values = higher certainty
+        odom.pose.covariance[0] = 0.1   # x
+        odom.pose.covariance[7] = 0.1   # y
+        odom.pose.covariance[14] = 0.1  # z
+        odom.pose.covariance[21] = 0.2  # roll
+        odom.pose.covariance[28] = 0.2  # pitch
+        odom.pose.covariance[35] = 0.2  # yaw
+        
+        odom.twist.covariance = odom.pose.covariance
         
         # Publish the message
         self.odom_pub.publish(odom)
