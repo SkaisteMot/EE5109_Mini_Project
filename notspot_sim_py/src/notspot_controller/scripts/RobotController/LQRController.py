@@ -37,7 +37,7 @@ class LQR_controller(object):
         self.K = self.compute_lqr_gain()
         
         self.max_output = 1.0    # Control output limits
-        self.gain_factor = 0.6  # Adjusted based on actual inertia values was 0.18 for controller
+        self.gain_factor = 0.18  # Adjusted based on actual inertia values was 0.18 for controller
     
     def update_matrices(self, dt):
         # A matrix for state dynamics [roll, roll_rate, pitch, pitch_rate]
