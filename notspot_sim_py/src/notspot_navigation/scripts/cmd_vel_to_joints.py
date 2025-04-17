@@ -124,7 +124,7 @@ class CmdVelToJoints:
             joy_msg.axes = [0.0] * 8
             joy_msg.buttons = [0] * 12
             self.joy_pub.publish(joy_msg)
-            rospy.logwarn(" No cmd_vel received recently - stopping robot")
+            rospy.logwarn("⚠️ No cmd_vel received recently - stopping robot")
     
     def mode_timer_callback(self, event):
         """Ensure the robot stays in the correct mode"""
@@ -226,61 +226,4 @@ class CmdVelToJoints:
             rospy.loginfo(f"📥 CMD_VEL Input: linear_x={msg.linear.x:.4f}, linear_y={msg.linear.y:.4f}, angular_z={msg.angular.z:.4f}")
         
         # Scale velocities to joystick range [-1, 1]
-        # Apply scaling factors and clamp to [-1, 1] range
-        angular_z = max(min(msg.angular.z * self.angular_z_scale, 1.0), -1.0)
-        linear_y = max(min(msg.linear.y * self.linear_y_scale, 1.0), -1.0)
-        linear_x = max(min(msg.linear.x * self.linear_x_scale, 1.0), -1.0)
-        
-        # Log scaled values
-        if not is_zero_cmd:
-            rospy.loginfo(f"⚖️ Scaled values: linear_x={linear_x:.4f}, linear_y={linear_y:.4f}, angular_z={angular_z:.4f}")
-        
-        # BOOST FORWARD MOVEMENT - This is the key change
-        if abs(linear_x) > self.movement_threshold:
-            # Increase the forward command to overcome friction/inertia
-            boosted_linear_x = linear_x * self.forward_boost
-            # Clamp to valid range [-1, 1]
-            if boosted_linear_x > 1.0:
-                boosted_linear_x = 1.0
-            elif boosted_linear_x < -1.0:
-                boosted_linear_x = -1.0
-                
-            # Apply boosted value
-            joy_msg.axes[3] = boosted_linear_x
-            
-            # Reduce rotation during forward movement for stability
-            joy_msg.axes[2] = angular_z * self.rotation_reduction
-            
-            rospy.loginfo(f"🚀 Boosting forward movement: {linear_x:.3f} → {boosted_linear_x:.3f}")
-            self.boosted_cmd_count += 1
-        else:
-            # For small or zero movements, use standard mapping
-            joy_msg.axes[3] = linear_x    # Forward/backward on axis 3
-            joy_msg.axes[2] = angular_z   # Rotation on axis 2
-            
-            if not is_zero_cmd:
-                rospy.loginfo(f"🐢 Movement below boost threshold ({self.movement_threshold})")
-                self.sub_threshold_count += 1
-        
-        # Always map lateral movement normally
-        joy_msg.axes[0] = linear_y    # Left/right on axis 0
-        
-        # Additional axes value to ensure robot is in proper height state
-        joy_msg.axes[1] = 0.0         # Height control
-        
-        # Update last command time
-        self.last_cmd_time = rospy.Time.now()
-        
-        # Publish the joy message
-        self.joy_pub.publish(joy_msg)
-        
-        # Log detailed values for debugging (only for non-zero commands)
-        if not is_zero_cmd:
-            rospy.loginfo(f"📤 JOY OUTPUT: x={msg.linear.x:.3f}→axis3={joy_msg.axes[3]:.3f}, y={msg.linear.y:.3f}→axis0={joy_msg.axes[0]:.3f}, θ={msg.angular.z:.3f}→axis2={joy_msg.axes[2]:.3f}")
-
-if __name__ == '__main__':
-    try:
-        CmdVelToJoints()
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        pass
+        # Apply scaling factors an

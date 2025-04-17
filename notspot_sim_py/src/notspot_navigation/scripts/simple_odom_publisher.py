@@ -12,7 +12,7 @@ class SimpleOdomPublisher:
     def __init__(self):
         rospy.init_node('simple_odom_publisher')
         
-        rospy.loginfo("INITIALIZING ENHANCED ODOMETRY PUBLISHER WITH DEBUGGING")
+        rospy.loginfo("INITIALIZING CORRECTED ODOMETRY PUBLISHER WITH DEBUGGING")
         
         self.odom_pub = rospy.Publisher("odom", Odometry, queue_size=50)
         self.odom_broadcaster = tf.TransformBroadcaster()
@@ -89,7 +89,7 @@ class SimpleOdomPublisher:
         rospy.loginfo(f"Publishing TF: {self.publish_tf}")
         rospy.loginfo("==============================")
         
-        rospy.loginfo("Simple Odometry Publisher started")
+        rospy.loginfo("Corrected Odometry Publisher started")
         
         # Wait for a moment to make sure tf is ready
         rospy.sleep(1.0)
@@ -244,10 +244,10 @@ class SimpleOdomPublisher:
         # Compute dt
         dt = (self.current_time - self.last_time).to_sec()
         
-        # Compute distance traveled
-        delta_x = (self.vx * dt)
-        delta_y = (self.vy * dt)
-        delta_th = (self.vth * dt)
+        # CORRECTED: Transform velocities from robot's local frame to global frame
+        delta_x = (self.vx * math.cos(self.th) - self.vy * math.sin(self.th)) * dt
+        delta_y = (self.vx * math.sin(self.th) + self.vy * math.cos(self.th)) * dt
+        delta_th = self.vth * dt
         
         # Only update position if there's actual movement
         if abs(delta_x) > 0 or abs(delta_y) > 0 or abs(delta_th) > 0:
