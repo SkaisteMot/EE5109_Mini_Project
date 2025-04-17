@@ -9,10 +9,15 @@ class CmdVelToJoints:
     def __init__(self):
         rospy.init_node('cmd_vel_to_joints')
         
-        # Parameters
-        self.auto_mode = rospy.get_param('~auto_mode', 'trot')  # Default gait mode
-        self.linear_scale = rospy.get_param('~linear_scale', 0.5)  # Scale for linear velocity
-        self.angular_scale = rospy.get_param('~angular_scale', 0.5)  # Scale for angular velocity
+        # Parameters matching trot gait speeds
+        self.max_x_velocity = 0.024  # [m/s]
+        self.max_y_velocity = 0.015  # [m/s]
+        self.max_yaw_rate = 0.6      # [rad/s]
+        
+        # Scale factors to normalize cmd_vel values to joystick range [-1, 1]
+        self.linear_x_scale = 1.0 / self.max_x_velocity
+        self.linear_y_scale = 1.0 / self.max_y_velocity
+        self.angular_z_scale = 1.0 / self.max_yaw_rate
         
         # Subscribe to cmd_vel topic
         rospy.Subscriber('/cmd_vel', Twist, self.cmd_vel_callback)
@@ -22,10 +27,11 @@ class CmdVelToJoints:
         
         # Initialize mode
         self.mode_set = False
+        self.lqr_enabled = False
         self.last_cmd_time = rospy.Time.now()
         self.timeout = rospy.Duration(1.0)  # 1 second timeout
         
-        rospy.loginfo("CmdVelToJoints node initialized with {} mode".format(self.auto_mode))
+        rospy.loginfo("CmdVelToJoints node initialized with trot gait parameters")
         
         # Timer for keeping the robot in the right mode
         rospy.Timer(rospy.Duration(1.0), self.mode_timer_callback)
@@ -34,37 +40,41 @@ class CmdVelToJoints:
     
     def mode_timer_callback(self, event):
         """Ensure the robot stays in the correct mode"""
-        if not self.mode_set:
+        if not self.mode_set or not self.lqr_enabled:
             self.send_mode_command()
     
     def send_mode_command(self):
-        """Send initial mode command to the robot"""
+        """Set the robot to trot mode with LQR control initially"""
+        # First put robot in trot mode
         joy_msg = Joy()
         joy_msg.axes = [0.0] * 8
         joy_msg.buttons = [0] * 12
         
-        # Set mode based on parameter
-        if self.auto_mode == 'trot':
-            joy_msg.buttons[1] = 1  # Trot mode
-            rospy.loginfo("Setting robot to TROT mode")
-        elif self.auto_mode == 'crawl':
-            joy_msg.buttons[2] = 1  # Crawl mode
-            rospy.loginfo("Setting robot to CRAWL mode")
-        elif self.auto_mode == 'stand':
-            joy_msg.buttons[3] = 1  # Stand mode
-            rospy.loginfo("Setting robot to STAND mode")
-        else:
-            joy_msg.buttons[0] = 1  # Rest mode
-            rospy.loginfo("Setting robot to REST mode")
+        # Button 1 is trot mode
+        joy_msg.buttons[1] = 1
         
         self.joy_pub.publish(joy_msg)
-        time.sleep(0.5)  # Wait to ensure mode change takes effect
+        rospy.loginfo("Setting robot to TROT mode")
+        time.sleep(0.5)  # Wait for mode to take effect
         self.mode_set = True
+        
+        # Then enable LQR control
+        joy_msg = Joy()
+        joy_msg.axes = [0.0] * 8
+        joy_msg.buttons = [0] * 12
+        
+        # Button 9 is LQR control
+        joy_msg.buttons[9] = 1
+        
+        self.joy_pub.publish(joy_msg)
+        rospy.loginfo("Enabling LQR control for stability")
+        time.sleep(0.5)  # Wait for LQR to activate
+        self.lqr_enabled = True
     
     def cmd_vel_callback(self, msg):
         """Convert Twist message to Joy message"""
         # Check if we need to set the mode first
-        if not self.mode_set:
+        if not self.mode_set or not self.lqr_enabled:
             self.send_mode_command()
         
         # Create Joy message
@@ -72,15 +82,21 @@ class CmdVelToJoints:
         joy_msg.axes = [0.0] * 8
         joy_msg.buttons = [0] * 12
         
-        # Map cmd_vel to joystick axes
-        # The mapping is based on the NotSpot control scheme:
+        # Map cmd_vel to joystick axes with proper scaling
+        # For the NotSpot trot controller:
         # - Axis 0: Left/right rotation (angular.z)
-        # - Axis 3: Forward/backward (linear.x)
         # - Axis 2: Left/right movement (linear.y)
+        # - Axis 3: Forward/backward (linear.x)
         
-        joy_msg.axes[0] = msg.angular.z * self.angular_scale  # Rotation
-        joy_msg.axes[3] = msg.linear.x * self.linear_scale    # Forward/backward
-        joy_msg.axes[2] = msg.linear.y * self.linear_scale    # Left/right
+        # Scale velocities to joystick range [-1, 1]
+        # Apply scaling factors and clamp to [-1, 1] range
+        angular_z = max(min(msg.angular.z * self.angular_z_scale, 1.0), -1.0)
+        linear_y = max(min(msg.linear.y * self.linear_y_scale, 1.0), -1.0)
+        linear_x = max(min(msg.linear.x * self.linear_x_scale, 1.0), -1.0)
+        
+        joy_msg.axes[0] = angular_z  # Rotation
+        joy_msg.axes[2] = linear_y   # Left/right movement
+        joy_msg.axes[3] = linear_x   # Forward/backward
         
         # Update last command time
         self.last_cmd_time = rospy.Time.now()
@@ -90,7 +106,7 @@ class CmdVelToJoints:
         
         # Log periodic status (avoiding spamming the log)
         if rospy.Time.now().to_sec() % 5 < 0.1:  # Log approximately every 5 seconds
-            rospy.loginfo(f"Converting cmd_vel - lin: [{msg.linear.x:.2f}, {msg.linear.y:.2f}], ang: {msg.angular.z:.2f}")
+            rospy.loginfo(f"CMD_VEL to Joy: lin_x: {linear_x:.2f}, lin_y: {linear_y:.2f}, ang_z: {angular_z:.2f}")
 
 if __name__ == '__main__':
     try:
