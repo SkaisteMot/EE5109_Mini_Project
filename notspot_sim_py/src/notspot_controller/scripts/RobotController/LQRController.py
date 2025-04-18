@@ -1,8 +1,16 @@
 import numpy as np
 import rospy
+import os
+import sys
+
+# Add the parent directory to the Python path to import the data_logger module
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+from data_logger import DataLogger
 
 class LQR_controller(object):
-    def __init__(self):
+    def __init__(self, logging_enabled=False):
         # desired roll and pitch angles
         self.desired_roll_pitch = np.array([0.0, 0.0])
         self.dt = 0.02  # Default time step
@@ -37,6 +45,21 @@ class LQR_controller(object):
         
         self.max_output = 1.0    # Control output limits
         self.gain_factor = 0.18  # Adjusted based on actual inertia values 
+        
+        # For data collection
+        self.logging_enabled = logging_enabled
+        if self.logging_enabled:
+            q_values = f"Q_{self.Q[0,0]}_{self.Q[2,2]}"
+            r_values = f"R_{self.R[0,0]}"
+            self.logger = DataLogger(controller_type=f"lqr_{q_values}_{r_values}")
+            self.logger.initialize_file([
+                'time', 'roll', 'pitch', 'roll_error', 'pitch_error',
+                'roll_vel', 'pitch_vel', 'state_vector',
+                'control_roll', 'control_pitch', 'control_magnitude',
+                'raw_control_roll', 'raw_control_pitch',
+                'inertia_roll', 'inertia_pitch', 'dt'
+            ])
+            self.start_time = rospy.Time.now()
     
     def update_matrices(self, dt):
         # A matrix for state dynamics [roll, roll_rate, pitch, pitch_rate]
@@ -84,8 +107,6 @@ class LQR_controller(object):
         if dt < 0.001 or dt > 0.1:
             dt = self.dt
         
-        #rospy.loginfo(f"dt = {dt}")
-        
         # Update matrices with current dt
         self.update_matrices(dt)
         
@@ -120,22 +141,83 @@ class LQR_controller(object):
         u = self.control_alpha * u_raw + (1 - self.control_alpha) * self.last_u
         self.last_u = u
 
-        # Debug print
-        #rospy.loginfo(f"[LQR] Raw Control: {state}, Control: {u}")
-
         # Clip output
-        u = np.clip(u, -self.max_output, self.max_output)
+        u_clipped = np.clip(u, -self.max_output, self.max_output)
+        
+        # Log data if enabled
+        if self.logging_enabled:
+            elapsed_time = (t_now - self.start_time).to_sec()
+            control_magnitude = np.linalg.norm(u_clipped)
+            state_str = ','.join([str(val) for val in state])
+            
+            log_data = {
+                'time': elapsed_time,
+                'roll': roll,
+                'pitch': pitch,
+                'roll_error': current_error[0],
+                'pitch_error': current_error[1],
+                'roll_vel': self.estimated_vel[0],
+                'pitch_vel': self.estimated_vel[1],
+                'state_vector': state_str,
+                'control_roll': u_clipped[0],
+                'control_pitch': u_clipped[1],
+                'control_magnitude': control_magnitude,
+                'raw_control_roll': u_raw[0],
+                'raw_control_pitch': u_raw[1],
+                'inertia_roll': self.inertia_roll,
+                'inertia_pitch': self.inertia_pitch,
+                'dt': dt
+            }
+            self.logger.log_data(log_data)
 
-        # Debug print
-        #rospy.loginfo(f"[LQR] Clipped Control: {u}")
-
-        return u
+        return u_clipped
     
     def reset(self):
         self.last_time = rospy.Time.now()
         self.last_error = np.array([0.0, 0.0])
         self.estimated_vel = np.array([0.0, 0.0])
         self.last_u = np.array([0.0, 0.0])
+        
+        # Reset logging start time
+        if self.logging_enabled:
+            self.start_time = rospy.Time.now()
     
     def desired_RP_angles(self, des_roll, des_pitch):
         self.desired_roll_pitch = np.array([des_roll, des_pitch])
+        
+    def set_parameters(self, q_diag, r_diag, gain_factor=None):
+        """
+        Adjust the controller parameters for experiments
+        
+        Args:
+            q_diag: 4-element list/array of diagonal values for Q matrix
+            r_diag: 2-element list/array of diagonal values for R matrix
+            gain_factor: Optional scaling factor for the control output
+        """
+        self.Q = np.diag(q_diag)
+        self.R = np.diag(r_diag)
+        
+        if gain_factor is not None:
+            self.gain_factor = gain_factor
+            
+        # Recompute the gain matrix
+        self.K = self.compute_lqr_gain()
+        
+        # Update logger filename if it exists
+        if self.logging_enabled:
+            q_values = f"Q_{self.Q[0,0]}_{self.Q[2,2]}"
+            r_values = f"R_{self.R[0,0]}"
+            self.logger.close()
+            self.logger = DataLogger(controller_type=f"lqr_{q_values}_{r_values}")
+            self.logger.initialize_file([
+                'time', 'roll', 'pitch', 'roll_error', 'pitch_error',
+                'roll_vel', 'pitch_vel', 'state_vector',
+                'control_roll', 'control_pitch', 'control_magnitude',
+                'raw_control_roll', 'raw_control_pitch',
+                'inertia_roll', 'inertia_pitch', 'dt'
+            ])
+            self.start_time = rospy.Time.now()
+    
+    def close_logger(self):
+        if self.logging_enabled and hasattr(self, 'logger'):
+            self.logger.close()
