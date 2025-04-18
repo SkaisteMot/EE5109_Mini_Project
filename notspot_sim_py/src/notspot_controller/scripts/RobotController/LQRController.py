@@ -84,7 +84,7 @@ class LQR_controller(object):
         if dt < 0.001 or dt > 0.1:
             dt = self.dt
         
-        rospy.loginfo(f"dt = {dt}")
+        #rospy.loginfo(f"dt = {dt}")
         
         # Update matrices with current dt
         self.update_matrices(dt)
