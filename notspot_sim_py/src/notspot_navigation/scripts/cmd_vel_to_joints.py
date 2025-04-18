@@ -204,21 +204,6 @@ class CmdVelToJoints:
         joy_msg.axes[1] = linear_y    # Left/right on axis 0  
         joy_msg.axes[3] = angular_z   # Rotation on axis 2
         
-        # Boost linear movement signal to overcome friction
-        if abs(linear_x) > 0.1:  # If there's a significant forward command
-            # Boost it slightly to overcome inertia
-            joy_msg.axes[3] = linear_x * 1.5
-            if joy_msg.axes[3] > 1.0:
-                joy_msg.axes[3] = 1.0
-            elif joy_msg.axes[3] < -1.0:
-                joy_msg.axes[3] = -1.0
-                
-            # Reduce yaw to prioritize forward motion
-            joy_msg.axes[2] = angular_z * 0.7
-        
-        # Additional axes value to ensure robot is in proper height state
-        joy_msg.axes[1] = 0.0         # Height control
-        
         # Update last command time
         self.last_cmd_time = rospy.Time.now()
         
