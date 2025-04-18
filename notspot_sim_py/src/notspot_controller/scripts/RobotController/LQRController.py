@@ -10,7 +10,7 @@ sys.path.append(parent_dir)
 from .data_logger import DataLogger
 
 class LQR_controller(object):
-    def __init__(self, logging_enabled=False):
+    def __init__(self, logging_enabled=True):
         # desired roll and pitch angles
         self.desired_roll_pitch = np.array([0.0, 0.0])
         self.dt = 0.02  # Default time step

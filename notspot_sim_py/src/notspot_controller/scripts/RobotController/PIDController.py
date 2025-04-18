@@ -13,7 +13,7 @@ sys.path.append(parent_dir)
 from .data_logger import DataLogger
 
 class PID_controller(object):
-    def __init__(self, kp, ki, kd, logging_enabled=False):
+    def __init__(self, kp, ki, kd, logging_enabled=True):
         self.kp = kp
         self.ki = ki
         self.kd = kd
