@@ -1,17 +1,17 @@
 TrajectoryPlannerROS:
   # Robot velocity constraints
   max_vel_x: 1.0  # Lower than robot's actual max for better control - was 0.015
-  min_vel_x: 0.00000005 # was 0.005
+  min_vel_x: 0.05 # was 0.005
   max_vel_theta: 1.0
   min_in_place_vel_theta: 0.001
   
   # Acceleration limits
   acc_lim_theta: 0.3
-  acc_lim_x: 0.2 # was 0.1
-  acc_lim_y: 0.2 # was 0.1
+  acc_lim_x: 0.5 # was 0.1
+  acc_lim_y: 0.5 # was 0.1
   
   # Goal tolerance
-  xy_goal_tolerance: 0.2
+  xy_goal_tolerance: 0.5 # was 0.2
   yaw_goal_tolerance: 0.3
   
   # Forward simulation parameters
