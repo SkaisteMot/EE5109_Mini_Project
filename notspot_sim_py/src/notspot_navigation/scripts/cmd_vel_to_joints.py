@@ -40,9 +40,9 @@ class CmdVelToJoints:
         self.joy_sub = rospy.Subscriber('/notspot_joy/joy_ramped', Joy, self.joy_callback)
         self.last_joy_msg = None
         
-        rospy.loginfo(f"CmdVelToJoints node initialized with {self.auto_mode} gait parameters")
-        rospy.loginfo(f"* MAXIMUM VALUES - X: {self.max_x_velocity} m/s, Y: {self.max_y_velocity} m/s, YAW: {self.max_yaw_rate} rad/s")
-        rospy.loginfo(f"* SCALE FACTORS - X: {self.linear_x_scale}, Y: {self.linear_y_scale}, YAW: {self.angular_z_scale}")
+        #rospy.loginfo(f"CmdVelToJoints node initialized with {self.auto_mode} gait parameters")
+        #rospy.loginfo(f"* MAXIMUM VALUES - X: {self.max_x_velocity} m/s, Y: {self.max_y_velocity} m/s, YAW: {self.max_yaw_rate} rad/s")
+        #rospy.loginfo(f"* SCALE FACTORS - X: {self.linear_x_scale}, Y: {self.linear_y_scale}, YAW: {self.angular_z_scale}")
         
         # Timer for keeping the robot in the right mode
         rospy.Timer(rospy.Duration(1.0), self.mode_timer_callback)
@@ -60,9 +60,9 @@ class CmdVelToJoints:
     def debug_timer_callback(self, event):
         """Regularly print debug info about control state"""
         if self.last_joy_msg:
-            rospy.loginfo("=== JOYSTICK STATUS ===")
-            rospy.loginfo(f"Mode: {self.auto_mode}, Mode set: {self.mode_set}, LQR: {self.stabilize_enabled}")
-            rospy.loginfo(f"Axes values:")
+            #rospy.loginfo("=== JOYSTICK STATUS ===")
+            #rospy.loginfo(f"Mode: {self.auto_mode}, Mode set: {self.mode_set}, LQR: {self.stabilize_enabled}")
+            #rospy.loginfo(f"Axes values:")
             
             # These are the specific axes we care about
             axis_names = ["lateral (0)", "height (1)", "rotation (2)", "forward (3)", 
@@ -83,7 +83,7 @@ class CmdVelToJoints:
             else:
                 rospy.loginfo("No active buttons")
                 
-            rospy.loginfo("=====================")
+            #rospy.loginfo("=====================")
         
     def safety_timer_callback(self, event):
         """Stop the robot if no commands have been received recently"""
