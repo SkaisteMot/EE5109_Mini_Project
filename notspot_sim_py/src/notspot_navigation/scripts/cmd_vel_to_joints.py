@@ -13,9 +13,9 @@ class CmdVelToJoints:
         self.auto_mode = rospy.get_param('~auto_mode', 'trot')  # Default to trot
         
         # Parameters matching trot gait controller speeds from controller code
-        self.max_x_velocity = 2.4  # [m/s] from TrotGaitController.py - was 0.024
-        self.max_y_velocity = 1.5  # [m/s] from TrotGaitController.py - was 0.015
-        self.max_yaw_rate = 1.6      # [rad/s] from TrotGaitController.py - was 0.06
+        self.max_x_velocity = 0.024  # [m/s] from TrotGaitController.py
+        self.max_y_velocity = 0.015  # [m/s] from TrotGaitController.py 
+        self.max_yaw_rate = 0.06      # [rad/s] from TrotGaitController.py 
         
         # Scale factors to normalize cmd_vel values to joystick range [-1, 1]
         self.linear_x_scale = 1.0 / self.max_x_velocity

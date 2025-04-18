@@ -121,13 +121,13 @@ class LQR_controller(object):
         self.last_u = u
 
         # Debug print
-        rospy.loginfo(f"[LQR] Raw Control: {state}, Control: {u}")
+        #rospy.loginfo(f"[LQR] Raw Control: {state}, Control: {u}")
 
         # Clip output
         u = np.clip(u, -self.max_output, self.max_output)
 
         # Debug print
-        rospy.loginfo(f"[LQR] Clipped Control: {u}")
+        #rospy.loginfo(f"[LQR] Clipped Control: {u}")
 
         return u
     
