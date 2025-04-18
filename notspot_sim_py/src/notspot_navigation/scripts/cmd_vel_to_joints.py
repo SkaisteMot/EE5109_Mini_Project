@@ -200,9 +200,9 @@ class CmdVelToJoints:
         # command.yaw_rate = msg.axes[2] * self.max_yaw_rate      # Rotation - AXIS 2
         
         # STANDARD MAPPING (Should match TrotGaitController.updateStateCommand)
-        joy_msg.axes[3] = linear_x    # Forward/backward on axis 3
-        joy_msg.axes[0] = linear_y    # Left/right on axis 0  
-        joy_msg.axes[2] = angular_z   # Rotation on axis 2
+        joy_msg.axes[2] = -linear_x    # Forward/backward on axis 3 
+        joy_msg.axes[1] = linear_y    # Left/right on axis 0  
+        joy_msg.axes[3] = angular_z   # Rotation on axis 2
         
         # Boost linear movement signal to overcome friction
         if abs(linear_x) > 0.1:  # If there's a significant forward command
