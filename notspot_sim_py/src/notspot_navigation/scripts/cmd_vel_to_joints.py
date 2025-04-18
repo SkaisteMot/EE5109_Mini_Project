@@ -201,7 +201,7 @@ class CmdVelToJoints:
         
         # STANDARD MAPPING (Should match TrotGaitController.updateStateCommand)
         joy_msg.axes[2] = linear_x    # Forward/backward on axis 3 
-        joy_msg.axes[0] = linear_y    # Left/right on axis 0  
+        joy_msg.axes[4] = linear_y    # Left/right on axis 0  
         joy_msg.axes[3] = angular_z   # Rotation on axis 2
         
         # Update last command time
