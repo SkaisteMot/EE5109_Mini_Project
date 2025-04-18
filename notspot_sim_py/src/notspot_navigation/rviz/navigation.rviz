@@ -337,7 +337,7 @@ Visualization Manager:
       Shaft Length: 1
       Shaft Radius: 0.0500000007
       Shape: Arrow
-      Topic: /move_base_simple/goal
+      Topic: /move_base/goal
       Unreliable: false
       Value: true
   Enabled: true
@@ -357,7 +357,7 @@ Visualization Manager:
     - Class: rviz/SetInitialPose
       Topic: /initialpose
     - Class: rviz/SetGoal
-      Topic: /move_base_simple/goal
+      Topic: /move_base/goal
     - Class: rviz/PublishPoint
       Single click: true
       Topic: /clicked_point
