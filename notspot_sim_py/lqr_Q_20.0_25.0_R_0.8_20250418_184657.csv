@@ -1,0 +1,1 @@
+time,roll,pitch,roll_error,pitch_error,roll_vel,pitch_vel,state_vector,control_roll,control_pitch,control_magnitude,raw_control_roll,raw_control_pitch,inertia_roll,inertia_pitch,dt
