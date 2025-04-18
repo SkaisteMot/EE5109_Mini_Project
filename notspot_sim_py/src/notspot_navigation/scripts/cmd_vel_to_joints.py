@@ -66,15 +66,10 @@ class CmdVelToJoints:
     
     def send_mode_command(self):
         """Set the robot to the appropriate mode (trot, crawl, etc.) with proper timing"""
-        # First, ensure clean state by sending rest mode
         joy_msg = Joy()
-        joy_msg.axes = [0.0] * 8
-        joy_msg.buttons = [0] * 12
-        joy_msg.buttons[1] = 1  # Trot Mode
-        self.joy_pub.publish(joy_msg)
-        rospy.sleep(0.7)  # Wait for mode to take effect
-        
+
         # Clear buttons
+        joy_msg.axes = [0.0] * 8
         joy_msg.buttons = [0] * 12
         self.joy_pub.publish(joy_msg)
         rospy.sleep(0.3)
